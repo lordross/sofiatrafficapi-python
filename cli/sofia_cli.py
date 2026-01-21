@@ -28,8 +28,9 @@ def print_location(location) -> None:
     """Print location details."""
     print(f"  Stop ID: {location.id}")
     print(f"  Name: {location.name}")
-    if location.latitude and location.longitude:
-        print(f"  Coordinates: {location.latitude}, {location.longitude}")
+    if location.coord:
+        lat, lon = location.coord
+        print(f"  Coordinates: {lat}, {lon}")
     print()
 
 
@@ -97,11 +98,14 @@ async def cmd_search_stops(args) -> None:
     print_header(f"Searching stops: '{args.query}'")
     
     async with SofiaNativeClient(args.base_url) as client:
-        stops = await client.search_stops(args.query, limit=args.limit)
+        stops = await client.search_stops(args.query)
         
         if not stops:
             print("  No stops found.")
             return
+        
+        # Limit results
+        stops = stops[:args.limit]
         
         print(f"Found {len(stops)} stop(s):\n")
         for stop in stops:
@@ -129,13 +133,15 @@ async def cmd_search_routes(args) -> None:
     async with SofiaNativeClient(args.base_url) as client:
         routes = await client.search_routes(
             args.query,
-            transport_type=args.type,
-            limit=args.limit
+            transport_type=args.type
         )
         
         if not routes:
             print("  No routes found.")
             return
+        
+        # Limit results
+        routes = routes[:args.limit]
         
         print(f"Found {len(routes)} route(s):\n")
         for route in routes:
@@ -230,15 +236,11 @@ async def cmd_cache_info(args) -> None:
     print_header("Cache Information")
     
     async with SofiaNativeClient(args.base_url) as client:
-        info = await client.get_cache_info()
+        info = client.get_cache_info()
         
         print(f"  Cache Directory: {info['cache_dir']}")
-        print(f"  Cache Exists: {info['cache_exists']}")
-        
-        if info['cache_exists']:
-            last_update = datetime.fromisoformat(info['last_update'])
-            print(f"  Last Update: {last_update.strftime('%Y-%m-%d %H:%M:%S')}")
-            print(f"  TTL Hours: {info['ttl_hours']}")
+        print(f"  Number of Files: {info['num_files']}")
+        print(f"  Total Size: {info['total_size_mb']} MB ({info['total_size_bytes']} bytes)")
         
         print()
 

@@ -42,8 +42,9 @@ class GTFSStaticParser:
             for row in reader:
                 stop_id = row["stop_id"]
                 stop_name = row["stop_name"]
-                lat = float(row["stop_lat"]) if row.get("stop_lat") else None
-                lon = float(row["stop_lon"]) if row.get("stop_lon") else None
+                # Handle empty coordinates
+                lat = float(row["stop_lat"]) if row.get("stop_lat") and row["stop_lat"].strip() else None
+                lon = float(row["stop_lon"]) if row.get("stop_lon") and row["stop_lon"].strip() else None
                 self._stops[stop_id] = Location.from_gtfs(stop_id, stop_name, lat, lon)
 
     def _parse_routes(self, zf: zipfile.ZipFile) -> None:
@@ -52,11 +53,14 @@ class GTFSStaticParser:
             reader = csv.DictReader(TextIOWrapper(f, "utf-8"))
             for row in reader:
                 route_id = row["route_id"]
+                # Handle empty route_type
+                route_type_str = row.get("route_type", "3").strip()
+                route_type = int(route_type_str) if route_type_str else 3
                 self._routes[route_id] = {
                     "route_id": route_id,
                     "route_short_name": row.get("route_short_name", ""),
                     "route_long_name": row.get("route_long_name", ""),
-                    "route_type": int(row.get("route_type", 3)),  # Default to bus
+                    "route_type": route_type,
                 }
 
     def _parse_trips(self, zf: zipfile.ZipFile) -> None:
@@ -65,11 +69,13 @@ class GTFSStaticParser:
             reader = csv.DictReader(TextIOWrapper(f, "utf-8"))
             for row in reader:
                 trip_id = row["trip_id"]
+                # Handle empty direction_id
+                direction_str = row.get("direction_id", "0").strip()
                 self._trips[trip_id] = {
                     "trip_id": trip_id,
                     "route_id": row["route_id"],
                     "trip_headsign": row.get("trip_headsign", ""),
-                    "direction_id": row.get("direction_id", "0"),
+                    "direction_id": direction_str if direction_str else "0",
                 }
 
     def _parse_stop_times(self, zf: zipfile.ZipFile) -> None:
@@ -78,10 +84,13 @@ class GTFSStaticParser:
             reader = csv.DictReader(TextIOWrapper(f, "utf-8"))
             for row in reader:
                 trip_id = row["trip_id"]
+                # Handle empty stop_sequence
+                stop_seq_str = row.get("stop_sequence", "0").strip()
+                stop_sequence = int(stop_seq_str) if stop_seq_str else 0
                 self._stop_times[trip_id].append({
                     "trip_id": trip_id,
                     "stop_id": row["stop_id"],
-                    "stop_sequence": int(row["stop_sequence"]),
+                    "stop_sequence": stop_sequence,
                     "arrival_time": row["arrival_time"],
                     "departure_time": row["departure_time"],
                 })
@@ -99,7 +108,9 @@ class GTFSStaticParser:
                 continue
             
             route_id = trip["route_id"]
-            direction_id = int(trip.get("direction_id", 0))
+            # Handle empty direction_id
+            direction_str = trip.get("direction_id", "0")
+            direction_id = int(direction_str) if direction_str and direction_str.strip() else 0
             
             # Sort by stop_sequence and get last stop
             sorted_stops = sorted(stop_times, key=lambda x: x["stop_sequence"])
