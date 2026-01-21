@@ -44,6 +44,17 @@ def print_line(line) -> None:
     print()
 
 
+def print_route(route: dict) -> None:
+    """Print route dict details from GTFS data."""
+    print(f"  Route ID: {route.get('route_id', 'N/A')}")
+    print(f"  Short Name: {route.get('route_short_name', 'N/A')}")
+    print(f"  Long Name: {route.get('route_long_name', 'N/A')}")
+    print(f"  Type: {route.get('route_type', 'N/A')}")
+    if route.get('route_color'):
+        print(f"  Color: #{route.get('route_color')}")
+    print()
+
+
 def print_departure(departure) -> None:
     """Print departure details."""
     print(f"  Line: {departure.line_id}")
@@ -131,10 +142,7 @@ async def cmd_search_routes(args) -> None:
     print_header(f"Searching routes: '{args.query}'")
     
     async with SofiaNativeClient(args.base_url) as client:
-        routes = await client.search_routes(
-            args.query,
-            transport_type=args.type
-        )
+        routes = await client.search_routes(args.query)
         
         if not routes:
             print("  No routes found.")
@@ -145,7 +153,7 @@ async def cmd_search_routes(args) -> None:
         
         print(f"Found {len(routes)} route(s):\n")
         for route in routes:
-            print_line(route)
+            print_route(route)
 
 
 async def cmd_routes_for_stop(args) -> None:
@@ -188,15 +196,14 @@ async def cmd_departures(args) -> None:
 
 
 async def cmd_arrivals(args) -> None:
-    """Get arrivals at stops for specific routes."""
-    print_header(f"Arrivals for Route(s): {', '.join(args.route_ids)}")
+    """Get arrivals at specific stops."""
+    print_header(f"Arrivals for Stop(s): {', '.join(args.stop_ids)}")
     
     async with SofiaNativeClient(args.base_url) as client:
         arrivals = await client.get_arrivals(
-            route_ids=args.route_ids,
             stop_ids=args.stop_ids,
-            after_time=args.time,
-            realtime=args.realtime
+            time_offset_minutes=args.time,
+            include_realtime=args.realtime
         )
         
         if not arrivals:
@@ -219,8 +226,7 @@ async def cmd_trip_time(args) -> None:
         trip_time = await client.calculate_trip_time(
             start_stop_id=args.start_stop,
             end_stop_id=args.end_stop,
-            route_id=args.route,
-            realtime=args.realtime
+            route_id=args.route
         )
         
         if not trip_time:
@@ -277,7 +283,6 @@ Examples:
   
   # Calculate trip time
   %(prog)s trip-time 1001 1003 84
-  %(prog)s trip-time 1001 1003 84 --realtime
   
   # Cache information
   %(prog)s cache-info
@@ -315,7 +320,6 @@ Transport Types: TRAM, SUBWAY, TRAIN, CITY_BUS, INTERCITY_BUS, TROLLEYBUS
         help="Search for routes by name or number"
     )
     search_routes.add_argument("query", help="Search query")
-    search_routes.add_argument("--type", help="Transport type filter", choices=[t.name for t in TransportType])
     search_routes.add_argument("--limit", type=int, default=20, help="Maximum results (default: 20)")
     
     # Routes for stop
@@ -338,11 +342,10 @@ Transport Types: TRAM, SUBWAY, TRAIN, CITY_BUS, INTERCITY_BUS, TROLLEYBUS
     # Arrivals
     arrivals = subparsers.add_parser(
         "arrivals",
-        help="Get arrivals at stops for specific routes"
+        help="Get arrivals at specific stops"
     )
-    arrivals.add_argument("route_ids", nargs="+", help="Route IDs")
-    arrivals.add_argument("--stop-ids", nargs="+", help="Optional stop IDs to filter")
-    arrivals.add_argument("--time", help="Filter arrivals after this time (HH:MM)")
+    arrivals.add_argument("stop_ids", nargs="+", help="Stop ID(s)")
+    arrivals.add_argument("--time", type=int, help="Time window in minutes (e.g., 30 for next 30 minutes)")
     arrivals.add_argument("--realtime", action="store_true", help="Include real-time information")
     arrivals.add_argument("--limit", type=int, default=20, help="Maximum results (default: 20)")
     
@@ -354,7 +357,6 @@ Transport Types: TRAM, SUBWAY, TRAIN, CITY_BUS, INTERCITY_BUS, TROLLEYBUS
     trip_time.add_argument("start_stop", help="Start stop ID")
     trip_time.add_argument("end_stop", help="End stop ID")
     trip_time.add_argument("route", help="Route ID")
-    trip_time.add_argument("--realtime", action="store_true", help="Include real-time delay information")
     
     # Cache info
     subparsers.add_parser(
