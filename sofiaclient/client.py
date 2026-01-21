@@ -1,0 +1,246 @@
+"""Sofia Traffic API Client - EfaClient compatible implementation."""
+
+from datetime import datetime, time
+from typing import Any
+
+import httpx
+
+from sofiaclient.cache import GTFSCache
+from sofiaclient.enums import LineRequestType, LocationFilter, TransportType
+from sofiaclient.exceptions import EfaConnectionError, EfaResponseInvalid
+from sofiaclient.gtfs_parser import GTFSStaticParser
+from sofiaclient.models import Departure, Line, Location
+from sofiaclient.realtime_parser import GTFSRealtimeParser
+
+
+class SofiaClient:
+    """
+    Sofia Traffic API client - drop-in replacement for EfaClient.
+    
+    Compatible with Home Assistant ha-departures component.
+    """
+
+    def __init__(self, url: str) -> None:
+        """
+        Initialize client.
+        
+        Args:
+            url: Base URL (e.g., https://gtfs.sofiatraffic.bg/api/v1/)
+        """
+        self.base_url = url.rstrip("/")
+        self._http_client: httpx.AsyncClient | None = None
+        self._cache = GTFSCache()
+        self._static_parser: GTFSStaticParser | None = None
+        self._realtime_parser = GTFSRealtimeParser()
+
+    async def __aenter__(self) -> "SofiaClient":
+        """Async context manager entry."""
+        self._http_client = httpx.AsyncClient(timeout=30.0)
+        await self._ensure_static_data_loaded()
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Async context manager exit."""
+        if self._http_client:
+            await self._http_client.aclose()
+            self._http_client = None
+
+    async def _ensure_static_data_loaded(self) -> None:
+        """Ensure static GTFS data is loaded."""
+        if self._static_parser is not None:
+            return
+
+        try:
+            static_url = f"{self.base_url}/static"
+            cache_path = await self._cache.get_static_data(static_url)
+            self._static_parser = GTFSStaticParser(cache_path)
+            self._static_parser.parse()
+        except Exception as e:
+            raise EfaConnectionError(f"Failed to load static GTFS data: {e}") from e
+
+    async def locations_by_name(
+        self, name: str, filters: list[LocationFilter] | None = None
+    ) -> list[Location]:
+        """
+        Search for locations (stops) by name.
+        
+        Args:
+            name: Search query (substring match, case-insensitive)
+            filters: Optional filters (only STOPS supported)
+            
+        Returns:
+            List of matching Location objects
+        """
+        await self._ensure_static_data_loaded()
+        
+        if not self._static_parser:
+            return []
+
+        # For now, we only support stops (not addresses or POIs)
+        if filters and LocationFilter.STOPS not in filters:
+            return []
+
+        return self._static_parser.search_stops(name)
+
+    async def lines_by_location(
+        self,
+        location_id: str,
+        req_types: list[LineRequestType] | None = None,
+        show_trains_explicit: bool = False,
+    ) -> list[Line]:
+        """
+        Get all lines/routes serving a specific location.
+        
+        Args:
+            location_id: Stop ID
+            req_types: Request types (not used, for compatibility)
+            show_trains_explicit: Whether to show trains (not used, for compatibility)
+            
+        Returns:
+            List of Line objects serving the stop
+        """
+        await self._ensure_static_data_loaded()
+        
+        if not self._static_parser:
+            return []
+
+        return self._static_parser.get_routes_for_stop(location_id)
+
+    async def departures_by_location(
+        self,
+        location_id: str,
+        arg_date: str | None = None,
+        realtime: bool = False,
+    ) -> list[Departure]:
+        """
+        Get departures for a specific location.
+        
+        Args:
+            location_id: Stop ID
+            arg_date: Time filter in "HH:MM" format (filters departures after this time)
+            realtime: Whether to include real-time delay information
+            
+        Returns:
+            List of Departure objects
+        """
+        await self._ensure_static_data_loaded()
+        
+        if not self._static_parser:
+            return []
+
+        # Parse time filter
+        filter_time = None
+        if arg_date:
+            try:
+                time_obj = datetime.strptime(arg_date, "%H:%M").time()
+                filter_time = datetime.combine(datetime.now().date(), time_obj)
+            except ValueError:
+                pass
+
+        # Get all trips that visit this stop
+        departures: list[Departure] = []
+        stop_times_by_trip: dict[str, list[dict[str, Any]]] = {}
+
+        # Collect all trips visiting this stop
+        for trip_id, stop_times in self._static_parser._stop_times.items():
+            for st in stop_times:
+                if st["stop_id"] == location_id:
+                    if trip_id not in stop_times_by_trip:
+                        stop_times_by_trip[trip_id] = []
+                    stop_times_by_trip[trip_id].append(st)
+
+        # Get real-time updates if requested
+        realtime_updates: dict[str, list[dict[str, Any]]] = {}
+        if realtime:
+            try:
+                realtime_updates = await self._fetch_trip_updates()
+            except Exception:
+                # If real-time data fails, continue with static data only
+                pass
+
+        # Build departure list
+        for trip_id, stop_times in stop_times_by_trip.items():
+            trip = self._static_parser._trips.get(trip_id)
+            if not trip:
+                continue
+
+            route_id = trip["route_id"]
+
+            for st in stop_times:
+                # Parse scheduled time
+                departure_time_str = st["departure_time"]
+                scheduled_time = self._parse_gtfs_time_to_datetime(departure_time_str)
+                
+                if not scheduled_time:
+                    continue
+
+                # Apply time filter
+                if filter_time and scheduled_time < filter_time:
+                    continue
+
+                # Get real-time estimate
+                estimated_time = None
+                if realtime and location_id in realtime_updates:
+                    for update in realtime_updates[location_id]:
+                        if update["trip_id"] == trip_id:
+                            if update.get("departure_time"):
+                                estimated_time = update["departure_time"]
+                            elif update.get("departure_delay") is not None:
+                                from datetime import timedelta
+                                estimated_time = scheduled_time + timedelta(
+                                    seconds=update["departure_delay"]
+                                )
+                            break
+
+                departure = Departure(
+                    line_id=route_id,
+                    planned_time=scheduled_time,
+                    estimated_time=estimated_time,
+                )
+                departures.append(departure)
+
+        # Sort by planned time
+        departures.sort(key=lambda d: d.planned_time or datetime.min)
+
+        return departures
+
+    async def _fetch_trip_updates(self) -> dict[str, list[dict[str, Any]]]:
+        """Fetch real-time trip updates."""
+        if not self._http_client:
+            raise EfaConnectionError("HTTP client not initialized")
+
+        try:
+            trip_url = f"{self.base_url}/trip"
+            response = await self._http_client.get(trip_url)
+            response.raise_for_status()
+            return self._realtime_parser.parse_trip_updates(response.content)
+        except httpx.HTTPError as e:
+            raise EfaConnectionError(f"Failed to fetch trip updates: {e}") from e
+        except Exception as e:
+            raise EfaResponseInvalid(f"Failed to parse trip updates: {e}") from e
+
+    def _parse_gtfs_time_to_datetime(self, time_str: str) -> datetime | None:
+        """
+        Parse GTFS time string to datetime.
+        
+        GTFS times can exceed 24 hours (e.g., "25:30:00" for 1:30 AM next day).
+        """
+        try:
+            parts = time_str.split(":")
+            hours = int(parts[0])
+            minutes = int(parts[1])
+            seconds = int(parts[2]) if len(parts) > 2 else 0
+
+            # Handle times >= 24 hours
+            days = hours // 24
+            hours = hours % 24
+
+            base_datetime = datetime.combine(datetime.now().date(), time(hours, minutes, seconds))
+            
+            if days > 0:
+                from datetime import timedelta
+                base_datetime += timedelta(days=days)
+
+            return base_datetime
+        except (ValueError, IndexError):
+            return None
