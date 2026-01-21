@@ -1,0 +1,6 @@
+# Sofia Traffic API Client - Production Dependencies
+# Install with: pip install -r requirements.txt
+
+httpx>=0.28.0
+gtfs-realtime-bindings>=1.0.0
+protobuf>=5.0.0
