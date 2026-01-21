@@ -109,6 +109,23 @@ class SofiaNativeClient:
 
         return self._static_parser.search_routes(query)
 
+    async def get_routes_for_stop(self, stop_id: str) -> list[Line]:
+        """
+        Get all routes that serve a specific stop.
+        
+        Args:
+            stop_id: Stop ID to find routes for
+            
+        Returns:
+            List of Line objects representing routes serving this stop
+        """
+        await self._ensure_static_data_loaded()
+        
+        if not self._static_parser:
+            return []
+
+        return self._static_parser.get_routes_for_stop(stop_id)
+
     async def get_arrivals(
         self,
         stop_ids: list[str],

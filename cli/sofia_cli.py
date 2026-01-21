@@ -38,8 +38,8 @@ def print_line(line) -> None:
     """Print line (route) details."""
     print(f"  Route ID: {line.id}")
     print(f"  Name: {line.name}")
-    print(f"  Type: {line.transport_type}")
-    if line.route_type is not None:
+    print(f"  Type: {line.product}")
+    if hasattr(line, 'route_type') and line.route_type is not None:
         print(f"  GTFS Route Type: {line.route_type}")
     print()
 
@@ -160,8 +160,8 @@ async def cmd_routes_for_stop(args) -> None:
     """Get all routes that service a stop."""
     print_header(f"Routes for Stop: {args.stop_id}")
     
-    async with SofiaClient(args.base_url) as client:
-        routes = await client.lines_by_location(args.stop_id)
+    async with SofiaNativeClient(args.base_url) as client:
+        routes = await client.get_routes_for_stop(args.stop_id)
         
         if not routes:
             print(f"  No routes found for stop '{args.stop_id}'.")
