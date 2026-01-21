@@ -243,7 +243,7 @@ class SofiaNativeClient:
         return arrivals
 
     async def calculate_trip_time(
-        self, start_stop_id: str, end_stop_id: str, route_id: str
+        self, start_stop_id: str, end_stop_id: str, route_id: str, include_realtime: bool = True
     ) -> TripTime | None:
         """
         Calculate trip time between two stops on a route.
@@ -252,6 +252,7 @@ class SofiaNativeClient:
             start_stop_id: Starting stop ID
             end_stop_id: Ending stop ID
             route_id: Route ID (line ID)
+            include_realtime: Include real-time delay information (default: True)
             
         Returns:
             TripTime object with scheduled and real-time durations, or None if not found
@@ -273,40 +274,40 @@ class SofiaNativeClient:
         realtime_minutes = None
         delay_minutes = None
 
-        try:
-            realtime_updates = await self._fetch_trip_updates()
-            
-            # Find a trip on this route that visits both stops
-            trips = self._static_parser.get_trips_for_route(route_id)
-            
-            for trip in trips:
-                trip_id = trip["trip_id"]
+        if include_realtime:
+            try:
+                realtime_updates = await self._fetch_trip_updates()
                 
-                # Get updates for both stops
-                start_delay = None
-                end_delay = None
+                # Find a trip on this route that visits both stops
+                trips = self._static_parser.get_trips_for_route(route_id)
+                
+                for trip in trips:
+                    trip_id = trip["trip_id"]
+                    
+                    # Get updates for both stops
+                    start_delay = None
+                    end_delay = None
 
-                if start_stop_id in realtime_updates:
-                    for update in realtime_updates[start_stop_id]:
-                        if update["trip_id"] == trip_id and update.get("departure_delay") is not None:
-                            start_delay = update["departure_delay"] // 60  # Convert to minutes
-                            break
+                    if start_stop_id in realtime_updates:
+                        for update in realtime_updates[start_stop_id]:
+                            if update["trip_id"] == trip_id and update.get("departure_delay") is not None:
+                                start_delay = update["departure_delay"] // 60  # Convert to minutes
+                                break
 
-                if end_stop_id in realtime_updates:
-                    for update in realtime_updates[end_stop_id]:
-                        if update["trip_id"] == trip_id and update.get("arrival_delay") is not None:
-                            end_delay = update["arrival_delay"] // 60  # Convert to minutes
-                            break
+                    if end_stop_id in realtime_updates:
+                        for update in realtime_updates[end_stop_id]:
+                            if update["trip_id"] == trip_id and update.get("arrival_delay") is not None:
+                                end_delay = update["arrival_delay"] // 60  # Convert to minutes
+                                break
 
-                # Calculate real-time duration
-                if start_delay is not None and end_delay is not None:
-                    realtime_minutes = scheduled_minutes + (end_delay - start_delay)
-                    delay_minutes = end_delay - start_delay
-                    break
-
-        except Exception:
-            # If real-time data fails, return with scheduled time only
-            pass
+                    # Calculate real-time duration
+                    if start_delay is not None and end_delay is not None:
+                        realtime_minutes = scheduled_minutes + (end_delay - start_delay)
+                        delay_minutes = end_delay - start_delay
+                        break
+            except Exception:
+                # If real-time data fails, return with scheduled time only
+                pass
 
         return TripTime(
             start_stop_id=start_stop_id,

@@ -226,7 +226,8 @@ async def cmd_trip_time(args) -> None:
         trip_time = await client.calculate_trip_time(
             start_stop_id=args.start_stop,
             end_stop_id=args.end_stop,
-            route_id=args.route
+            route_id=args.route,
+            include_realtime=args.realtime
         )
         
         if not trip_time:
@@ -282,7 +283,9 @@ Examples:
   %(prog)s arrivals 84 285 --realtime
   
   # Calculate trip time
-  %(prog)s trip-time 1001 1003 84
+  %(prog)s trip-time A1139 A6753 A99
+  %(prog)s trip-time A1139 A6753 A99 --realtime
+  %(prog)s trip-time A1139 A6753 A99 --no-realtime
   
   # Cache information
   %(prog)s cache-info
@@ -357,6 +360,8 @@ Transport Types: TRAM, SUBWAY, TRAIN, CITY_BUS, INTERCITY_BUS, TROLLEYBUS
     trip_time.add_argument("start_stop", help="Start stop ID")
     trip_time.add_argument("end_stop", help="End stop ID")
     trip_time.add_argument("route", help="Route ID")
+    trip_time.add_argument("--realtime", action="store_true", default=True, help="Include real-time delays (default: True)")
+    trip_time.add_argument("--no-realtime", dest="realtime", action="store_false", help="Use only scheduled times")
     
     # Cache info
     subparsers.add_parser(
