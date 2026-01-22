@@ -1,80 +1,95 @@
 #!/bin/bash
 
-# Demo script for trip-time command with real Sofia traffic data
-# This script demonstrates the trip-time calculation functionality
+# Demo script for Sofia Traffic API CLI with real Sofia traffic data
+# This script demonstrates all available CLI commands using actual stops and routes
 
 echo "======================================================================"
-echo "  Sofia Traffic API - Trip Time Demo"
+echo "  Sofia Traffic API - Complete CLI Demo"
 echo "======================================================================"
-echo ""
-echo "NOTE: The Sofia Traffic GTFS static data may not contain complete"
-echo "      stop_times.txt information needed for trip time calculations."
-echo "      This demo shows the CLI functionality even if calculations fail."
 echo ""
 
 cd cli
 
-echo "1. Finding available stops..."
-echo "   Searching for stops near 'НАЦИОНАЛЕН ДВОРЕЦ НА КУЛТУРАТА' (NDK)"
-./sofia_cli.py search-stops "национален" --limit 2
+echo "1. SEARCH STOPS - Finding NDK (National Palace of Culture)"
+echo "   Command: ./sofia_cli.py search-stops \"ндк\" --limit 3"
+./sofia_cli.py search-stops "ндк" --limit 3
 echo ""
 
-echo "2. Finding available routes..."
-echo "   Searching for route 97"
+echo "2. SEARCH STOPS - Finding Central Station"
+echo "   Command: ./sofia_cli.py search-stops \"централна гара\" --limit 3"
+./sofia_cli.py search-stops "централна гара" --limit 3
+echo ""
+
+echo "3. GET STOP DETAILS - Details for NDK stop A1135"
+echo "   Command: ./sofia_cli.py get-stop A1135"
+./sofia_cli.py get-stop A1135
+echo ""
+
+echo "4. SEARCH ROUTES - Finding route 97"
+echo "   Command: ./sofia_cli.py search-routes \"97\" --limit 3"
 ./sofia_cli.py search-routes "97" --limit 3
 echo ""
 
-echo "3. Searching for stops along a route..."
-echo "   Finding 'централ' stops"
-./sofia_cli.py search-stops "централ" --limit 3
+echo "5. SEARCH ROUTES - Finding all routes containing '9'"
+echo "   Command: ./sofia_cli.py search-routes \"9\" --limit 5"
+./sofia_cli.py search-routes "9" --limit 5
 echo ""
 
-echo "4. DEMO: Calculate trip time (SCHEDULED only)"
-echo "   Attempting with example stops from the data"
-echo "   Command: ./sofia_cli.py trip-time A1139 A6753 A264 --no-realtime"
-echo ""
-./sofia_cli.py trip-time A1139 A6753 A264 --no-realtime
+echo "6. ROUTES FOR STOP - All routes serving Central Station (A1333)"
+echo "   Command: ./sofia_cli.py routes-for-stop A1333"
+./sofia_cli.py routes-for-stop A1333
 echo ""
 
-echo "5. DEMO: Calculate trip time (with REALTIME data)"
-echo "   Same stops but with real-time delays included"
-echo "   Command: ./sofia_cli.py trip-time A1139 A6753 A264 --realtime"
+echo "7. DEPARTURES - Next departures from Central Station (A1333)"
+echo "   Command: ./sofia_cli.py departures A1333 --limit 5"
+./sofia_cli.py departures A1333 --limit 5
 echo ""
-./sofia_cli.py trip-time A1139 A6753 A264 --realtime
+
+echo "8. DEPARTURES WITH REALTIME - Real-time departures from A1333"
+echo "   Command: ./sofia_cli.py departures A1333 --realtime --limit 5"
+./sofia_cli.py departures A1333 --realtime --limit 5
+echo ""
+
+echo "9. ARRIVALS - Upcoming arrivals at NDK stops"
+echo "   Command: ./sofia_cli.py arrivals A1135 TB6107 --limit 5"
+./sofia_cli.py arrivals A1135 TB6107 --limit 5
+echo ""
+
+echo "10. ARRIVALS WITH REALTIME - Real-time arrivals at stops"
+echo "    Command: ./sofia_cli.py arrivals A1135 TB6107 --realtime --limit 5"
+./sofia_cli.py arrivals A1135 TB6107 --realtime --limit 5
+echo ""
+
+echo "11. TRIP TIME (SCHEDULED) - NDK to Central Station via Route 97"
+echo "    Command: ./sofia_cli.py trip-time A1135 A1333 A264 --no-realtime"
+./sofia_cli.py trip-time A1135 A1333 A264 --no-realtime
+echo ""
+
+echo "12. TRIP TIME (WITH REALTIME) - Same route with delays"
+echo "    Command: ./sofia_cli.py trip-time A1135 A1333 A264 --realtime"
+./sofia_cli.py trip-time A1135 A1333 A264 --realtime
+echo ""
+
+echo "13. CACHE INFO - Display cache statistics"
+echo "    Command: ./sofia_cli.py cache-info"
+./sofia_cli.py cache-info
 echo ""
 
 echo "======================================================================"
-echo "  Note About Results"
+echo "  Demo Complete"
 echo "======================================================================"
 echo ""
-echo "If you see 'Trip time could not be calculated', this means:"
-echo "  - The GTFS static data lacks complete stop_times.txt information"
-echo "  - The stops are not connected by the specified route"
-echo "  - The route doesn't have schedule data"
+echo "All CLI commands demonstrated with real Sofia Traffic data:"
+echo "  ✓ search-stops    - Search for stops by name"
+echo "  ✓ get-stop        - Get details for a specific stop"
+echo "  ✓ search-routes   - Search for routes by name/number"
+echo "  ✓ routes-for-stop - Get all routes serving a stop"
+echo "  ✓ departures      - Get departures from a stop"
+echo "  ✓ arrivals        - Get arrivals at specific stops"
+echo "  ✓ trip-time       - Calculate trip time between stops"
+echo "  ✓ cache-info      - Display cache information"
 echo ""
-echo "The Sofia Traffic API provides real-time vehicle positions and alerts,"
-echo "but the static schedule data (stop_times.txt) may be incomplete or"
-echo "not published. This is common for some transit agencies."
-echo ""
-echo "======================================================================"
-echo "  Testing with Mock Data"
-echo "======================================================================"
-echo ""
-echo "To see the trip-time feature working correctly, run the test suite:"
-echo "  cd .. && python3 -m pytest tests/test_native_client.py::test_calculate_trip_time -v"
-echo ""
-echo "The tests use complete mock GTFS data that includes full stop_times"
-echo "information, demonstrating the functionality when proper data is available."
-echo ""
-echo "======================================================================"
-echo "  Usage Examples"
-echo "======================================================================"
-echo ""
-echo "  # Scheduled time only:"
-echo "  ./sofia_cli.py trip-time <START_STOP> <END_STOP> <ROUTE> --no-realtime"
-echo ""
-echo "  # With real-time delays (default):"
-echo "  ./sofia_cli.py trip-time <START_STOP> <END_STOP> <ROUTE>"
-echo "  ./sofia_cli.py trip-time <START_STOP> <END_STOP> <ROUTE> --realtime"
+echo "Note: Some operations may return no results if the GTFS static data"
+echo "      lacks complete schedule information for specific stops/routes."
 echo ""
 
