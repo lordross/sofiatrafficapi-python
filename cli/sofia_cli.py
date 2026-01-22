@@ -8,8 +8,9 @@ A CLI tool for testing and interacting with the Sofia Traffic API.
 import argparse
 import asyncio
 import sys
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 # Add parent directory to path for local development
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -57,20 +58,41 @@ def print_route(route: dict) -> None:
 
 def print_departure(departure) -> None:
     """Print departure details."""
+    sofia_tz = ZoneInfo("Europe/Sofia")
+    
     print(f"  Line: {departure.line_id}")
     planned_str = departure.planned_time.strftime("%H:%M:%S") if departure.planned_time else "N/A"
     print(f"  Scheduled: {planned_str}")
     
     if departure.estimated_time:
-        estimated_str = departure.estimated_time.strftime("%H:%M:%S")
+        # Convert estimated time to Sofia timezone if it's in UTC or other TZ
+        est_time = departure.estimated_time
+        if est_time.tzinfo is not None:
+            # Convert to Sofia local time
+            est_time = est_time.astimezone(sofia_tz)
+        
+        estimated_str = est_time.strftime("%H:%M:%S")
         print(f"  Estimated: {estimated_str}")
-        if departure.delay:
-            print(f"  Delay: {departure.delay} seconds")
+        
+        # Show delay if available
+        delay = departure.delay_minutes
+        if delay is not None:
+            if delay > 0:
+                print(f"  Delay: +{delay} minutes")
+            elif delay < 0:
+                print(f"  Early: {abs(delay)} minutes")
+            else:
+                print(f"  Status: On time")
+    else:
+        # No real-time data available
+        print(f"  Status: No real-time data")
     print()
 
 
 def print_arrival(arrival) -> None:
     """Print arrival details."""
+    sofia_tz = ZoneInfo("Europe/Sofia")
+    
     print(f"  Stop ID: {arrival.stop_id}")
     print(f"  Stop Name: {arrival.stop_name}")
     print(f"  Route: {arrival.route_id} - {arrival.route_name}")
@@ -79,8 +101,26 @@ def print_arrival(arrival) -> None:
     print(f"  Scheduled: {scheduled_str}")
     
     if arrival.estimated_time:
-        estimated_str = arrival.estimated_time.strftime("%H:%M:%S")
+        # Convert estimated time to Sofia timezone if it's in UTC or other TZ
+        est_time = arrival.estimated_time
+        if est_time.tzinfo is not None:
+            # Convert to Sofia local time
+            est_time = est_time.astimezone(sofia_tz)
+        
+        estimated_str = est_time.strftime("%H:%M:%S")
         print(f"  Estimated: {estimated_str}")
+        
+        # Show delay if available
+        if arrival.delay_minutes is not None:
+            if arrival.delay_minutes > 0:
+                print(f"  Delay: +{arrival.delay_minutes} minutes")
+            elif arrival.delay_minutes < 0:
+                print(f"  Early: {abs(arrival.delay_minutes)} minutes")
+            else:
+                print(f"  Status: On time")
+    else:
+        # No real-time data available
+        print(f"  Status: No real-time data")
     
     if arrival.alerts:
         print(f"  Alerts: {len(arrival.alerts)}")
@@ -89,18 +129,47 @@ def print_arrival(arrival) -> None:
     print()
 
 
-def print_trip_time(trip_time) -> None:
+def print_trip_time(trip_time, start_stop=None, end_stop=None, next_departure=None, next_arrival=None, departure_obj=None) -> None:
     """Print trip time details."""
-    print(f"  From: {trip_time.start_stop_id}")
-    print(f"  To: {trip_time.end_stop_id}")
+    if start_stop:
+        print(f"  From: {start_stop.name} ({trip_time.start_stop_id})")
+    else:
+        print(f"  From: {trip_time.start_stop_id}")
+    
+    if end_stop:
+        print(f"  To: {end_stop.name} ({trip_time.end_stop_id})")
+    else:
+        print(f"  To: {trip_time.end_stop_id}")
+    
     print(f"  Route: {trip_time.route_id}")
     print(f"  Scheduled Duration: {trip_time.scheduled_duration_str}")
     
-    if trip_time.estimated_duration:
-        print(f"  Estimated Duration: {trip_time.estimated_duration_str}")
+    if trip_time.realtime_duration is not None:
+        print(f"  Realtime Duration: {trip_time.realtime_duration_str}")
     
-    if trip_time.delay:
-        print(f"  Delay: {trip_time.delay} seconds")
+    if trip_time.delay_minutes is not None:
+        if trip_time.delay_minutes > 0:
+            print(f"  Route Delay: +{trip_time.delay_minutes} minutes")
+        elif trip_time.delay_minutes < 0:
+            print(f"  Route Early: {abs(trip_time.delay_minutes)} minutes")
+    
+    if next_departure:
+        print(f"  Next Departure: {next_departure.strftime('%H:%M:%S')}")
+        
+        # Show departure delay status
+        if departure_obj:
+            delay = departure_obj.delay_minutes
+            if delay is not None:
+                if delay > 0:
+                    print(f"  Departure Delay: +{delay} minutes")
+                elif delay < 0:
+                    print(f"  Departure Early: {abs(delay)} minutes")
+                else:
+                    print(f"  Departure Status: On time")
+    
+    if next_arrival:
+        print(f"  Estimated Arrival: {next_arrival.strftime('%H:%M:%S')}")
+    
     print()
 
 
@@ -222,7 +291,15 @@ async def cmd_trip_time(args) -> None:
     """Calculate trip time between two stops on a route."""
     print_header(f"Trip Time: {args.start_stop} → {args.end_stop} on Route {args.route}")
     
+    # Sofia timezone (Europe/Sofia)
+    sofia_tz = ZoneInfo("Europe/Sofia")
+    now = datetime.now(sofia_tz)
+    
     async with SofiaNativeClient(args.base_url) as client:
+        # Get stop names
+        start_stop = await client.get_stop(args.start_stop)
+        end_stop = await client.get_stop(args.end_stop)
+        
         trip_time = await client.calculate_trip_time(
             start_stop_id=args.start_stop,
             end_stop_id=args.end_stop,
@@ -235,7 +312,56 @@ async def cmd_trip_time(args) -> None:
             print("  Make sure the stops are on the specified route.")
             return
         
-        print_trip_time(trip_time)
+        # Get next departure to calculate arrival time
+        next_departure = None
+        next_arrival = None
+        next_departure_obj = None
+        try:
+            # Need to use SofiaClient for departures_by_location
+            from sofiaclient import SofiaClient
+            async with SofiaClient(args.base_url) as efa_client:
+                # Pass current time as filter to get future departures
+                current_time_str = now.strftime("%H:%M")
+                departures = await efa_client.departures_by_location(
+                    location_id=args.start_stop,
+                    arg_date=current_time_str,
+                    realtime=args.realtime
+                )
+                # Find next departure for this route
+                for dep in departures:
+                    if dep.line_id == args.route and dep.planned_time:
+                        # Use estimated time if available and makes sense, otherwise use planned
+                        departure_time = dep.planned_time
+                        
+                        if dep.estimated_time:
+                            # Convert estimated time to Sofia timezone if it's in UTC or other TZ
+                            est_time = dep.estimated_time
+                            if est_time.tzinfo is not None:
+                                # Convert to Sofia time
+                                est_time = est_time.astimezone(sofia_tz)
+                            else:
+                                # Assume it's Sofia time if naive
+                                est_time = est_time.replace(tzinfo=sofia_tz)
+                            
+                            # Only use estimated if it's in the future
+                            if est_time > now:
+                                departure_time = est_time
+                        
+                        # Make timezone-aware if naive
+                        if departure_time.tzinfo is None:
+                            departure_time = departure_time.replace(tzinfo=sofia_tz)
+                        
+                        next_departure = departure_time
+                        next_departure_obj = dep  # Store the departure object for delay info
+                        # Calculate arrival
+                        duration_minutes = trip_time.realtime_duration if trip_time.realtime_duration is not None else trip_time.scheduled_duration
+                        next_arrival = next_departure + timedelta(minutes=duration_minutes)
+                        break
+        except Exception as e:
+            # Continue without arrival time if we can't fetch it
+            pass
+        
+        print_trip_time(trip_time, start_stop, end_stop, next_departure, next_arrival, next_departure_obj)
 
 
 async def cmd_cache_info(args) -> None:
