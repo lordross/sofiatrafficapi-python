@@ -127,8 +127,30 @@ class Departure:
     def delay_minutes(self) -> int | None:
         """Calculate delay in minutes."""
         if self.planned_time and self.estimated_time:
-            delta = self.estimated_time - self.planned_time
-            return int(delta.total_seconds() / 60)
+            try:
+                # Handle timezone-aware and naive datetime comparison
+                planned = self.planned_time
+                estimated = self.estimated_time
+                
+                # If one is aware and the other is naive, make both aware in same timezone
+                if planned.tzinfo is None and estimated.tzinfo is not None:
+                    # Assume planned time is in the same timezone as estimated
+                    from zoneinfo import ZoneInfo
+                    # Get the timezone from estimated
+                    if estimated.tzinfo.tzname(estimated) == 'UTC':
+                        # Convert estimated to Sofia time and make planned aware in Sofia time
+                        sofia_tz = ZoneInfo("Europe/Sofia")
+                        estimated = estimated.astimezone(sofia_tz)
+                        planned = planned.replace(tzinfo=sofia_tz)
+                    else:
+                        planned = planned.replace(tzinfo=estimated.tzinfo)
+                elif planned.tzinfo is not None and estimated.tzinfo is None:
+                    estimated = estimated.replace(tzinfo=planned.tzinfo)
+                
+                delta = estimated - planned
+                return int(delta.total_seconds() / 60)
+            except (TypeError, AttributeError):
+                return None
         return None
 
 
