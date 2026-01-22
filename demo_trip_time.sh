@@ -41,33 +41,33 @@ echo "   Command: ./sofia_cli.py routes-for-stop A1333"
 echo ""
 
 echo "7. DEPARTURES - Next departures from Central Station (A1333)"
-echo "   Command: ./sofia_cli.py departures A1333 --limit 5"
-./sofia_cli.py departures A1333 --limit 5
+echo "   Command: ./sofia_cli.py departures A1333 --time \"$(date +%H:%M)\" --limit 5"
+./sofia_cli.py departures A1333 --time "$(date +%H:%M)" --limit 5
 echo ""
 
 echo "8. DEPARTURES WITH REALTIME - Real-time departures from A1333"
-echo "   Command: ./sofia_cli.py departures A1333 --realtime --limit 5"
-./sofia_cli.py departures A1333 --realtime --limit 5
+echo "   Command: ./sofia_cli.py departures A1333 --time \"$(date +%H:%M)\" --realtime --limit 5"
+./sofia_cli.py departures A1333 --time "$(date +%H:%M)" --realtime --limit 5
 echo ""
 
-echo "9. ARRIVALS - Upcoming arrivals at NDK stops"
-echo "   Command: ./sofia_cli.py arrivals A1135 TB6107 --limit 5"
-./sofia_cli.py arrivals A1135 TB6107 --limit 5
+echo "9. ARRIVALS - Upcoming arrivals at Central Station"
+echo "   Command: ./sofia_cli.py arrivals A1333 --time 120 --limit 5"
+./sofia_cli.py arrivals A1333 --time 120 --limit 5
 echo ""
 
-echo "10. ARRIVALS WITH REALTIME - Real-time arrivals at stops"
-echo "    Command: ./sofia_cli.py arrivals A1135 TB6107 --realtime --limit 5"
-./sofia_cli.py arrivals A1135 TB6107 --realtime --limit 5
+echo "10. ARRIVALS WITH REALTIME - Real-time arrivals at Central Station"
+echo "    Command: ./sofia_cli.py arrivals A1333 --time 120 --realtime --limit 5"
+./sofia_cli.py arrivals A1333 --time 120 --realtime --limit 5
 echo ""
 
-echo "11. TRIP TIME (SCHEDULED) - NDK to Central Station via Route 97"
-echo "    Command: ./sofia_cli.py trip-time A1135 A1333 A264 --no-realtime"
-./sofia_cli.py trip-time A1135 A1333 A264 --no-realtime
+echo "11. TRIP TIME (SCHEDULED) - Central Station to A1278 via Route A42 (line 21)"
+echo "    Command: ./sofia_cli.py trip-time A1333 A1278 A42 --no-realtime"
+./sofia_cli.py trip-time A1333 A1278 A42 --no-realtime
 echo ""
 
-echo "12. TRIP TIME (WITH REALTIME) - Same route with delays"
-echo "    Command: ./sofia_cli.py trip-time A1135 A1333 A264 --realtime"
-./sofia_cli.py trip-time A1135 A1333 A264 --realtime
+echo "12. TRIP TIME (WITH REALTIME) - Same route with real-time data"
+echo "    Command: ./sofia_cli.py trip-time A1333 A1278 A42 --realtime"
+./sofia_cli.py trip-time A1333 A1278 A42 --realtime
 echo ""
 
 echo "13. CACHE INFO - Display cache statistics"
