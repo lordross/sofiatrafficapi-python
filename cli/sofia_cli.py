@@ -55,11 +55,11 @@ def print_departure(departure) -> None:
 
         if departure.delay_minutes is not None:
             if departure.delay_minutes > 0:
-                print(f"  Delay: +{departure.delay_minutes} min")
+                print(f"  Deviation: Delay ({departure.delay_minutes} min)")
             elif departure.delay_minutes < 0:
-                print(f"  Delay: {departure.delay_minutes} min (early)")
+                print(f"  Deviation: Early ({abs(departure.delay_minutes)} min)")
             else:
-                print(f"  Delay: On time")
+                print(f"  Deviation: On time")
     print()
 
 
@@ -78,11 +78,11 @@ def print_arrival(arrival) -> None:
 
     if arrival.delay_minutes is not None:
         if arrival.delay_minutes > 0:
-            print(f"  Delay: +{arrival.delay_minutes} min")
+            print(f"  Deviation: Delay ({arrival.delay_minutes} min)")
         elif arrival.delay_minutes < 0:
-            print(f"  Delay: {arrival.delay_minutes} min (early)")
+            print(f"  Deviation: Early ({abs(arrival.delay_minutes)} min)")
         else:
-            print(f"  Delay: On time")
+            print(f"  Deviation: On time")
 
     if arrival.vehicle_id:
         print(f"  Vehicle: {arrival.vehicle_id}")
