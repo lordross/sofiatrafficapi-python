@@ -99,7 +99,7 @@ async def test_client_departures_with_realtime(httpx_mock: HTTPXMock, mock_gtfs_
         content=mock_gtfs_zip.read_bytes()
     )
     httpx_mock.add_response(
-        url="https://gtfs.sofiatraffic.bg/api/v1/trip",
+        url="https://gtfs.sofiatraffic.bg/api/v1/trip-updates",
         content=sample_trip_update_protobuf
     )
     
@@ -156,7 +156,7 @@ async def test_client_departures_realtime_error(httpx_mock: HTTPXMock, mock_gtfs
         content=mock_gtfs_zip.read_bytes()
     )
     httpx_mock.add_response(
-        url="https://gtfs.sofiatraffic.bg/api/v1/trip",
+        url="https://gtfs.sofiatraffic.bg/api/v1/trip-updates",
         status_code=500
     )
     
@@ -176,7 +176,7 @@ async def test_native_client_arrivals_with_realtime(httpx_mock: HTTPXMock, mock_
         content=mock_gtfs_zip.read_bytes()
     )
     httpx_mock.add_response(
-        url="https://gtfs.sofiatraffic.bg/api/v1/trip",
+        url="https://gtfs.sofiatraffic.bg/api/v1/trip-updates",
         content=sample_trip_update_protobuf
     )
     
@@ -214,7 +214,7 @@ async def test_native_client_arrivals_realtime_failure(httpx_mock: HTTPXMock, mo
     )
     httpx_mock.add_exception(
         Exception("Network error"),
-        url="https://gtfs.sofiatraffic.bg/api/v1/trip"
+        url="https://gtfs.sofiatraffic.bg/api/v1/trip-updates"
     )
     httpx_mock.add_exception(
         Exception("Network error"),

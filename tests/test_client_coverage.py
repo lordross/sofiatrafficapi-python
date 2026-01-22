@@ -15,7 +15,7 @@ async def test_departures_with_realtime_updates(httpx_mock: HTTPXMock, mock_gtfs
         content=mock_gtfs_zip.read_bytes()
     )
     httpx_mock.add_response(
-        url="https://gtfs.sofiatraffic.bg/api/v1/trip",
+        url="https://gtfs.sofiatraffic.bg/api/v1/trip-updates",
         content=sample_trip_update_protobuf
     )
     
@@ -50,7 +50,7 @@ async def test_departures_realtime_with_departure_time(httpx_mock: HTTPXMock, mo
     stop_update.departure.time = int(datetime.now().timestamp()) + 600  # 10 min from now
     
     httpx_mock.add_response(
-        url="https://gtfs.sofiatraffic.bg/api/v1/trip",
+        url="https://gtfs.sofiatraffic.bg/api/v1/trip-updates",
         content=feed.SerializeToString()
     )
     
@@ -82,7 +82,7 @@ async def test_departures_realtime_with_delay(httpx_mock: HTTPXMock, mock_gtfs_z
     stop_update.departure.delay = 300  # 5 minutes delay
     
     httpx_mock.add_response(
-        url="https://gtfs.sofiatraffic.bg/api/v1/trip",
+        url="https://gtfs.sofiatraffic.bg/api/v1/trip-updates",
         content=feed.SerializeToString()
     )
     
@@ -140,7 +140,7 @@ async def test_fetch_trip_updates_http_error(httpx_mock: HTTPXMock, mock_gtfs_zi
         content=mock_gtfs_zip.read_bytes()
     )
     httpx_mock.add_response(
-        url="https://gtfs.sofiatraffic.bg/api/v1/trip",
+        url="https://gtfs.sofiatraffic.bg/api/v1/trip-updates",
         status_code=500
     )
     
@@ -158,7 +158,7 @@ async def test_fetch_trip_updates_parse_error(httpx_mock: HTTPXMock, mock_gtfs_z
         content=mock_gtfs_zip.read_bytes()
     )
     httpx_mock.add_response(
-        url="https://gtfs.sofiatraffic.bg/api/v1/trip",
+        url="https://gtfs.sofiatraffic.bg/api/v1/trip-updates",
         content=b"invalid protobuf data"
     )
     

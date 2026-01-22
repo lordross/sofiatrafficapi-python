@@ -85,7 +85,7 @@ async def test_arrivals_with_delays_and_vehicles(httpx_mock: HTTPXMock, mock_gtf
     stu.arrival.delay = 300  # 5 minute delay
     
     httpx_mock.add_response(
-        url="https://gtfs.sofiatraffic.bg/api/v1/trip",
+        url="https://gtfs.sofiatraffic.bg/api/v1/trip-updates",
         content=trip_feed.SerializeToString()
     )
     
@@ -161,7 +161,7 @@ async def test_arrivals_with_exact_arrival_time(httpx_mock: HTTPXMock, mock_gtfs
     stu.arrival.time = int((datetime.now() + timedelta(minutes=10)).timestamp())
     
     httpx_mock.add_response(
-        url="https://gtfs.sofiatraffic.bg/api/v1/trip",
+        url="https://gtfs.sofiatraffic.bg/api/v1/trip-updates",
         content=trip_feed.SerializeToString()
     )
     
@@ -218,7 +218,7 @@ async def test_calculate_trip_time_with_realtime(httpx_mock: HTTPXMock, mock_gtf
     stu2.arrival.delay = 120
     
     httpx_mock.add_response(
-        url="https://gtfs.sofiatraffic.bg/api/v1/trip",
+        url="https://gtfs.sofiatraffic.bg/api/v1/trip-updates",
         content=trip_feed.SerializeToString()
     )
     
@@ -238,7 +238,7 @@ async def test_fetch_trip_updates_error(httpx_mock: HTTPXMock, mock_gtfs_zip):
     )
     
     httpx_mock.add_response(
-        url="https://gtfs.sofiatraffic.bg/api/v1/trip",
+        url="https://gtfs.sofiatraffic.bg/api/v1/trip-updates",
         status_code=500
     )
     

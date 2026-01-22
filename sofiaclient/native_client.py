@@ -341,7 +341,7 @@ class SofiaNativeClient:
             raise EfaConnectionError("HTTP client not initialized")
 
         try:
-            trip_url = f"{self.base_url}/trip"
+            trip_url = f"{self.base_url}/trip-updates"
             response = await self._http_client.get(trip_url)
             response.raise_for_status()
             return self._realtime_parser.parse_trip_updates(response.content)

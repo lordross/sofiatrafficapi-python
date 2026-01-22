@@ -169,7 +169,7 @@ async def test_calculate_trip_time(httpx_mock: HTTPXMock, mock_gtfs_zip):
     )
     # Mock trip endpoint (can return empty - test still uses static data)
     httpx_mock.add_response(
-        url="https://gtfs.sofiatraffic.bg/api/v1/trip",
+        url="https://gtfs.sofiatraffic.bg/api/v1/trip-updates",
         content=b""  # Empty protobuf is fine for this test
     )
     
