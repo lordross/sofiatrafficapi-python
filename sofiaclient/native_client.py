@@ -214,6 +214,19 @@ class SofiaNativeClient:
                             if update["trip_id"] == trip_id:
                                 if update.get("arrival_time"):
                                     estimated_time = update["arrival_time"]
+                                    # Calculate delay from time difference
+                                    try:
+                                        # Handle timezone-aware vs naive comparison
+                                        est = estimated_time
+                                        sched = scheduled_time
+                                        if est.tzinfo is not None and sched.tzinfo is None:
+                                            from zoneinfo import ZoneInfo
+                                            sofia_tz = ZoneInfo("Europe/Sofia")
+                                            est = est.astimezone(sofia_tz)
+                                            sched = sched.replace(tzinfo=sofia_tz)
+                                        delay_minutes = int((est - sched).total_seconds() / 60)
+                                    except:
+                                        delay_minutes = None
                                 elif update.get("arrival_delay") is not None:
                                     estimated_time = scheduled_time + timedelta(
                                         seconds=update["arrival_delay"]
