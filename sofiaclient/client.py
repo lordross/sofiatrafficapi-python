@@ -224,10 +224,21 @@ class SofiaClient:
                                 seconds=best_match["departure_delay"]
                             )
 
+                # Get route info for line name and transport type
+                route = self._static_parser._routes.get(route_id, {})
+                line_name = route.get("route_short_name") or route.get("route_long_name")
+                route_type_val = route.get("route_type", 3)
+                try:
+                    transport_type = TransportType(route_type_val)
+                except ValueError:
+                    transport_type = TransportType.CITY_BUS
+
                 departure = Departure(
                     line_id=route_id,
                     planned_time=scheduled_time,
                     estimated_time=estimated_time,
+                    line_name=line_name,
+                    transport_type=transport_type,
                 )
                 departures.append(departure)
 

@@ -45,7 +45,10 @@ def print_line(line) -> None:
 
 def print_departure(departure) -> None:
     """Print departure details."""
-    print(f"  Line: {departure.line_id}")
+    line_display = departure.line_name or departure.line_id
+    if departure.transport_type:
+        line_display = f"{line_display} ({departure.transport_type.name})"
+    print(f"  Line: {line_display}")
     planned_str = departure.planned_time.strftime("%H:%M:%S") if departure.planned_time else "N/A"
     print(f"  Scheduled: {planned_str}")
 
