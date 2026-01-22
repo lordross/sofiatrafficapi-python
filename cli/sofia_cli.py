@@ -180,12 +180,17 @@ async def cmd_routes_for_stop(args) -> None:
 
 async def cmd_departures(args) -> None:
     """Get departures from a stop."""
-    print_header(f"Departures from Stop: {args.stop_id}")
-    
+    # Use current time if not specified
+    time_filter = args.time
+    if not time_filter:
+        time_filter = datetime.now().strftime("%H:%M")
+
+    print_header(f"Departures from Stop: {args.stop_id} (after {time_filter})")
+
     async with SofiaClient(args.base_url) as client:
         departures = await client.departures_by_location(
             args.stop_id,
-            arg_date=args.time,
+            arg_date=time_filter,
             realtime=args.realtime
         )
         

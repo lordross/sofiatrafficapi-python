@@ -194,17 +194,30 @@ class SofiaClient:
                         if update.get("route_id") == route_id:
                             update_time = update.get("departure_time") or update.get("arrival_time")
                             if update_time:
-                                # Compare times (normalize timezone)
-                                update_time_naive = update_time.replace(tzinfo=None) if update_time.tzinfo else update_time
-                                time_diff = abs((update_time_naive - scheduled_time).total_seconds())
-                                # Only match if within 30 minutes of scheduled time
-                                if time_diff < 1800 and (best_time_diff is None or time_diff < best_time_diff):
-                                    best_time_diff = time_diff
+                                # Convert UTC to local time for comparison
+                                if update_time.tzinfo is not None:
+                                    update_time_local = update_time.astimezone().replace(tzinfo=None)
+                                else:
+                                    update_time_local = update_time
+
+                                # Calculate time difference (positive = late, negative = early)
+                                time_diff_seconds = (update_time_local - scheduled_time).total_seconds()
+                                abs_time_diff = abs(time_diff_seconds)
+
+                                # Only match if within 5 minutes of scheduled time
+                                # This prevents matching wrong trips
+                                if abs_time_diff < 300 and (best_time_diff is None or abs_time_diff < best_time_diff):
+                                    best_time_diff = abs_time_diff
                                     best_match = update
 
                     if best_match:
                         if best_match.get("departure_time"):
-                            estimated_time = best_match["departure_time"]
+                            # Convert UTC to local time
+                            dep_time = best_match["departure_time"]
+                            if dep_time.tzinfo is not None:
+                                estimated_time = dep_time.astimezone().replace(tzinfo=None)
+                            else:
+                                estimated_time = dep_time
                         elif best_match.get("departure_delay") is not None:
                             from datetime import timedelta
                             estimated_time = scheduled_time + timedelta(
