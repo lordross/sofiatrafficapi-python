@@ -148,9 +148,18 @@ class GTFSCache:
         """Get information about cached files."""
         files = list(self.cache_dir.glob("gtfs_static_*.zip"))
         total_size = sum(f.stat().st_size for f in files)
-        
+
+        cache_exists = len(files) > 0
+        last_update = None
+        if cache_exists:
+            newest_file = max(files, key=lambda f: f.stat().st_mtime)
+            last_update = datetime.fromtimestamp(newest_file.stat().st_mtime).isoformat()
+
         return {
             "cache_dir": str(self.cache_dir),
+            "cache_exists": cache_exists,
+            "last_update": last_update,
+            "ttl_hours": int(self.ttl.total_seconds() / 3600),
             "num_files": len(files),
             "total_size_bytes": total_size,
             "total_size_mb": round(total_size / (1024 * 1024), 2),

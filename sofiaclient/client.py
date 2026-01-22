@@ -181,16 +181,35 @@ class SofiaClient:
                 # Get real-time estimate
                 estimated_time = None
                 if realtime and location_id in realtime_updates:
+                    best_match = None
+                    best_time_diff = None
+
                     for update in realtime_updates[location_id]:
+                        # Match by trip_id first (exact match)
                         if update["trip_id"] == trip_id:
-                            if update.get("departure_time"):
-                                estimated_time = update["departure_time"]
-                            elif update.get("departure_delay") is not None:
-                                from datetime import timedelta
-                                estimated_time = scheduled_time + timedelta(
-                                    seconds=update["departure_delay"]
-                                )
+                            best_match = update
                             break
+
+                        # Match by route_id and find closest scheduled time
+                        if update.get("route_id") == route_id:
+                            update_time = update.get("departure_time") or update.get("arrival_time")
+                            if update_time:
+                                # Compare times (normalize timezone)
+                                update_time_naive = update_time.replace(tzinfo=None) if update_time.tzinfo else update_time
+                                time_diff = abs((update_time_naive - scheduled_time).total_seconds())
+                                # Only match if within 30 minutes of scheduled time
+                                if time_diff < 1800 and (best_time_diff is None or time_diff < best_time_diff):
+                                    best_time_diff = time_diff
+                                    best_match = update
+
+                    if best_match:
+                        if best_match.get("departure_time"):
+                            estimated_time = best_match["departure_time"]
+                        elif best_match.get("departure_delay") is not None:
+                            from datetime import timedelta
+                            estimated_time = scheduled_time + timedelta(
+                                seconds=best_match["departure_delay"]
+                            )
 
                 departure = Departure(
                     line_id=route_id,
@@ -210,7 +229,7 @@ class SofiaClient:
             raise EfaConnectionError("HTTP client not initialized")
 
         try:
-            trip_url = f"{self.base_url}/trip"
+            trip_url = f"{self.base_url}/trip-updates"
             response = await self._http_client.get(trip_url)
             response.raise_for_status()
             return self._realtime_parser.parse_trip_updates(response.content)

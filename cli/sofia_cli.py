@@ -48,12 +48,18 @@ def print_departure(departure) -> None:
     print(f"  Line: {departure.line_id}")
     planned_str = departure.planned_time.strftime("%H:%M:%S") if departure.planned_time else "N/A"
     print(f"  Scheduled: {planned_str}")
-    
+
     if departure.estimated_time:
         estimated_str = departure.estimated_time.strftime("%H:%M:%S")
         print(f"  Estimated: {estimated_str}")
-        if departure.delay:
-            print(f"  Delay: {departure.delay} seconds")
+
+        if departure.delay_minutes is not None:
+            if departure.delay_minutes > 0:
+                print(f"  Delay: +{departure.delay_minutes} min")
+            elif departure.delay_minutes < 0:
+                print(f"  Delay: {departure.delay_minutes} min (early)")
+            else:
+                print(f"  Delay: On time")
     print()
 
 
@@ -62,14 +68,28 @@ def print_arrival(arrival) -> None:
     print(f"  Stop ID: {arrival.stop_id}")
     print(f"  Stop Name: {arrival.stop_name}")
     print(f"  Route: {arrival.route_id} - {arrival.route_name}")
-    
+
     scheduled_str = arrival.scheduled_time.strftime("%H:%M:%S") if arrival.scheduled_time else "N/A"
     print(f"  Scheduled: {scheduled_str}")
-    
+
     if arrival.estimated_time:
         estimated_str = arrival.estimated_time.strftime("%H:%M:%S")
         print(f"  Estimated: {estimated_str}")
-    
+
+    if arrival.delay_minutes is not None:
+        if arrival.delay_minutes > 0:
+            print(f"  Delay: +{arrival.delay_minutes} min")
+        elif arrival.delay_minutes < 0:
+            print(f"  Delay: {arrival.delay_minutes} min (early)")
+        else:
+            print(f"  Delay: On time")
+
+    if arrival.vehicle_id:
+        print(f"  Vehicle: {arrival.vehicle_id}")
+
+    if arrival.headsign:
+        print(f"  Headsign: {arrival.headsign}")
+
     if arrival.alerts:
         print(f"  Alerts: {len(arrival.alerts)}")
         for alert in arrival.alerts:
@@ -228,19 +248,243 @@ async def cmd_trip_time(args) -> None:
 async def cmd_cache_info(args) -> None:
     """Display cache information."""
     print_header("Cache Information")
-    
+
     async with SofiaNativeClient(args.base_url) as client:
-        info = await client.get_cache_info()
-        
+        info = client.get_cache_info()
+
         print(f"  Cache Directory: {info['cache_dir']}")
         print(f"  Cache Exists: {info['cache_exists']}")
-        
+
         if info['cache_exists']:
             last_update = datetime.fromisoformat(info['last_update'])
             print(f"  Last Update: {last_update.strftime('%Y-%m-%d %H:%M:%S')}")
             print(f"  TTL Hours: {info['ttl_hours']}")
-        
+
         print()
+
+
+def to_local_time(dt):
+    """Convert datetime to local timezone."""
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        return dt.astimezone().replace(tzinfo=None)
+    return dt
+
+
+async def cmd_realtime(args) -> None:
+    """Display raw real-time data from the API."""
+    import csv
+    import httpx
+    from sofiaclient.realtime_parser import GTFSRealtimeParser
+
+    print_header(f"Real-time Data: {args.feed_type}")
+
+    base_url = args.base_url.rstrip("/")
+
+    # Map feed type to URL endpoint
+    feed_urls = {
+        "trip": f"{base_url}/trip-updates",
+        "vehicle": f"{base_url}/vehicle-positions",
+        "alerts": f"{base_url}/alerts",
+    }
+
+    url = feed_urls.get(args.feed_type)
+    if not url:
+        print(f"  Unknown feed type: {args.feed_type}")
+        return
+
+    print(f"  Fetching from: {url}\n")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            response = await client.get(url)
+            response.raise_for_status()
+            data = response.content
+
+            parser = GTFSRealtimeParser()
+
+            if args.feed_type == "trip":
+                updates = parser.parse_trip_updates(data)
+                total_updates = sum(len(v) for v in updates.values())
+                print(f"  Found {total_updates} trip updates for {len(updates)} stops:\n")
+
+                # Save to CSV if requested
+                if args.csv:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"trip_updates_{timestamp}.csv"
+                    with open(filename, "w", newline="", encoding="utf-8") as f:
+                        writer = csv.writer(f)
+                        writer.writerow([
+                            "stop_id", "trip_id", "route_id", "stop_sequence",
+                            "arrival_delay_sec", "arrival_time",
+                            "departure_delay_sec", "departure_time"
+                        ])
+                        for stop_id, stop_updates in updates.items():
+                            for update in stop_updates:
+                                writer.writerow([
+                                    stop_id,
+                                    update.get("trip_id", ""),
+                                    update.get("route_id", ""),
+                                    update.get("stop_sequence", ""),
+                                    update.get("arrival_delay", ""),
+                                    to_local_time(update.get("arrival_time")) or "",
+                                    update.get("departure_delay", ""),
+                                    to_local_time(update.get("departure_time")) or "",
+                                ])
+                    print(f"  Saved {total_updates} records to {filename}\n")
+                else:
+                    # Display to console with limit
+                    count = 0
+                    for stop_id, stop_updates in updates.items():
+                        if args.limit and count >= args.limit:
+                            print(f"\n  ... and {len(updates) - count} more stops")
+                            break
+
+                        print(f"  Stop: {stop_id}")
+                        for update in stop_updates[:3]:
+                            print(f"    Trip: {update['trip_id']}")
+                            if update.get('route_id'):
+                                print(f"    Route: {update['route_id']}")
+                            if update.get('arrival_delay') is not None:
+                                delay_min = update['arrival_delay'] // 60
+                                print(f"    Arrival Delay: {delay_min} min ({update['arrival_delay']} sec)")
+                            if update.get('departure_delay') is not None:
+                                delay_min = update['departure_delay'] // 60
+                                print(f"    Departure Delay: {delay_min} min ({update['departure_delay']} sec)")
+                            if update.get('arrival_time'):
+                                print(f"    Arrival Time: {to_local_time(update['arrival_time'])}")
+                            if update.get('departure_time'):
+                                print(f"    Departure Time: {to_local_time(update['departure_time'])}")
+                            print()
+                        if len(stop_updates) > 3:
+                            print(f"    ... and {len(stop_updates) - 3} more updates for this stop\n")
+                        count += 1
+
+            elif args.feed_type == "vehicle":
+                positions = parser.parse_vehicle_positions(data)
+                print(f"  Found {len(positions)} vehicle positions:\n")
+
+                # Save to CSV if requested
+                if args.csv:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"vehicle_positions_{timestamp}.csv"
+                    with open(filename, "w", newline="", encoding="utf-8") as f:
+                        writer = csv.writer(f)
+                        writer.writerow([
+                            "vehicle_id", "trip_id", "route_id",
+                            "latitude", "longitude", "stop_id",
+                            "current_stop_sequence", "timestamp"
+                        ])
+                        for vehicle_id, pos in positions.items():
+                            writer.writerow([
+                                vehicle_id,
+                                pos.get("trip_id", ""),
+                                pos.get("route_id", ""),
+                                pos.get("latitude", ""),
+                                pos.get("longitude", ""),
+                                pos.get("stop_id", ""),
+                                pos.get("current_stop_sequence", ""),
+                                to_local_time(pos.get("timestamp")) or "",
+                            ])
+                    print(f"  Saved {len(positions)} records to {filename}\n")
+                else:
+                    # Display to console with limit
+                    count = 0
+                    for vehicle_id, pos in positions.items():
+                        if args.limit and count >= args.limit:
+                            print(f"\n  ... and {len(positions) - count} more vehicles")
+                            break
+
+                        print(f"  Vehicle: {vehicle_id}")
+                        if pos.get('trip_id'):
+                            print(f"    Trip: {pos['trip_id']}")
+                        if pos.get('route_id'):
+                            print(f"    Route: {pos['route_id']}")
+                        if pos.get('latitude') and pos.get('longitude'):
+                            print(f"    Position: {pos['latitude']}, {pos['longitude']}")
+                        if pos.get('stop_id'):
+                            print(f"    Current Stop: {pos['stop_id']}")
+                        if pos.get('timestamp'):
+                            print(f"    Timestamp: {to_local_time(pos['timestamp'])}")
+                        print()
+                        count += 1
+
+            elif args.feed_type == "alerts":
+                alerts = parser.parse_service_alerts(data)
+                route_alerts = alerts.get('routes', {})
+                stop_alerts = alerts.get('stops', {})
+
+                total_alerts = sum(len(v) for v in route_alerts.values()) + sum(len(v) for v in stop_alerts.values())
+                print(f"  Found {total_alerts} alerts for {len(route_alerts)} routes and {len(stop_alerts)} stops:\n")
+
+                # Save to CSV if requested
+                if args.csv:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"service_alerts_{timestamp}.csv"
+                    with open(filename, "w", newline="", encoding="utf-8") as f:
+                        writer = csv.writer(f)
+                        writer.writerow([
+                            "entity_type", "entity_id", "alert_id",
+                            "header", "description", "cause", "effect"
+                        ])
+                        for route_id, route_alert_list in route_alerts.items():
+                            for alert in route_alert_list:
+                                writer.writerow([
+                                    "route",
+                                    route_id,
+                                    alert.get("alert_id", ""),
+                                    alert.get("header", ""),
+                                    alert.get("description", ""),
+                                    alert.get("cause", ""),
+                                    alert.get("effect", ""),
+                                ])
+                        for stop_id, stop_alert_list in stop_alerts.items():
+                            for alert in stop_alert_list:
+                                writer.writerow([
+                                    "stop",
+                                    stop_id,
+                                    alert.get("alert_id", ""),
+                                    alert.get("header", ""),
+                                    alert.get("description", ""),
+                                    alert.get("cause", ""),
+                                    alert.get("effect", ""),
+                                ])
+                    print(f"  Saved {total_alerts} records to {filename}\n")
+                else:
+                    # Display to console with limit
+                    count = 0
+                    for route_id, route_alert_list in route_alerts.items():
+                        if args.limit and count >= args.limit:
+                            print(f"\n  ... and more alerts")
+                            break
+
+                        print(f"  Route: {route_id}")
+                        for alert in route_alert_list:
+                            if alert.get('header'):
+                                print(f"    Header: {alert['header']}")
+                            if alert.get('description'):
+                                print(f"    Description: {alert['description'][:100]}...")
+                        print()
+                        count += 1
+
+                    for stop_id, stop_alert_list in stop_alerts.items():
+                        if args.limit and count >= args.limit:
+                            break
+
+                        print(f"  Stop: {stop_id}")
+                        for alert in stop_alert_list:
+                            if alert.get('header'):
+                                print(f"    Header: {alert['header']}")
+                            if alert.get('description'):
+                                print(f"    Description: {alert['description'][:100]}...")
+                        print()
+                        count += 1
+
+        except httpx.HTTPError as e:
+            print(f"  Error fetching data: {e}")
+        except Exception as e:
+            print(f"  Error parsing data: {e}")
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -359,7 +603,20 @@ Transport Types: TRAM, SUBWAY, TRAIN, CITY_BUS, INTERCITY_BUS, TROLLEYBUS
         "cache-info",
         help="Display cache information"
     )
-    
+
+    # Realtime data
+    realtime = subparsers.add_parser(
+        "realtime",
+        help="Display raw real-time data from the API"
+    )
+    realtime.add_argument(
+        "feed_type",
+        choices=["trip", "vehicle", "alerts"],
+        help="Type of real-time feed (trip=delays, vehicle=positions, alerts=service alerts)"
+    )
+    realtime.add_argument("--limit", type=int, default=10, help="Maximum items to display (default: 10)")
+    realtime.add_argument("--csv", action="store_true", help="Save all data to CSV file with timestamp")
+
     return parser
 
 
@@ -390,6 +647,8 @@ async def main() -> None:
             await cmd_trip_time(args)
         elif args.command == "cache-info":
             await cmd_cache_info(args)
+        elif args.command == "realtime":
+            await cmd_realtime(args)
         else:
             parser.print_help()
     

@@ -56,7 +56,7 @@ class GTFSStaticParser:
                     "route_id": route_id,
                     "route_short_name": row.get("route_short_name", ""),
                     "route_long_name": row.get("route_long_name", ""),
-                    "route_type": int(row.get("route_type", 3)),  # Default to bus
+                    "route_type": int(row["route_type"]) if row.get("route_type") else 3,
                 }
 
     def _parse_trips(self, zf: zipfile.ZipFile) -> None:
@@ -99,7 +99,7 @@ class GTFSStaticParser:
                 continue
             
             route_id = trip["route_id"]
-            direction_id = int(trip.get("direction_id", 0))
+            direction_id = int(trip["direction_id"]) if trip.get("direction_id") else 0
             
             # Sort by stop_sequence and get last stop
             sorted_stops = sorted(stop_times, key=lambda x: x["stop_sequence"])
