@@ -19,7 +19,7 @@ The Sofia Traffic system provides the following GTFS endpoints:
 1. **Alerts**: `https://gtfs.sofiatraffic.bg/api/v1/alerts`
    - Service alerts and notifications
    
-2. **Trip Updates**: `https://gtfs.sofiatraffic.bg/api/v1/trip`
+2. **Trip Updates**: `https://gtfs.sofiatraffic.bg/api/v1/trip-updates`
    - Real-time trip schedule updates
    
 3. **Vehicle Positions**: `https://gtfs.sofiatraffic.bg/api/v1/vehicle-positions`
