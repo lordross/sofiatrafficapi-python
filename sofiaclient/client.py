@@ -233,12 +233,16 @@ class SofiaClient:
                 except ValueError:
                     transport_type = TransportType.CITY_BUS
 
+                # Get headsign from trip data
+                headsign = trip.get("trip_headsign")
+
                 departure = Departure(
                     line_id=route_id,
                     planned_time=scheduled_time,
                     estimated_time=estimated_time,
                     line_name=line_name,
                     transport_type=transport_type,
+                    headsign=headsign,
                 )
                 departures.append(departure)
 

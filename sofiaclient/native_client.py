@@ -245,7 +245,15 @@ class SofiaNativeClient:
                     for update in realtime_updates[current_stop_id]:
                         if update["trip_id"] == trip_id:
                             if update.get("arrival_time"):
-                                estimated_time = update["arrival_time"]
+                                # Convert UTC to local time
+                                arr_time = update["arrival_time"]
+                                if arr_time.tzinfo is not None:
+                                    estimated_time = arr_time.astimezone().replace(tzinfo=None)
+                                else:
+                                    estimated_time = arr_time
+                                # Calculate delay from scheduled vs estimated
+                                delta = estimated_time - scheduled_time
+                                delay_minutes = int(delta.total_seconds() / 60)
                             elif update.get("arrival_delay") is not None:
                                 estimated_time = scheduled_time + timedelta(
                                     seconds=update["arrival_delay"]

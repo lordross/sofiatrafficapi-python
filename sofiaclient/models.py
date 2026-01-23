@@ -144,6 +144,7 @@ class Departure:
     estimated_time: datetime | None
     line_name: str | None = None
     transport_type: TransportType | None = None
+    headsign: str | None = None
 
     @property
     def delay_minutes(self) -> int | None:
