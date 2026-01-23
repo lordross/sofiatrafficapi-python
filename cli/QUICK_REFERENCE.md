@@ -7,10 +7,15 @@ No additional installation needed if sofiaclient is installed:
 pip install -e .
 ```
 
+For TUI application:
+```bash
+pip install textual
+```
+
 ## Basic Usage
 
 ```bash
-python3 cli/sofia_cli.py <command> [options]
+python cli/sofia_cli.py <command> [options]
 ```
 
 ## Commands Overview
@@ -18,13 +23,14 @@ python3 cli/sofia_cli.py <command> [options]
 | Command | Description | Example |
 |---------|-------------|---------|
 | `search-stops` | Find stops by name | `search-stops "Централна"` |
-| `get-stop` | Get stop details | `get-stop 1001` |
+| `get-stop` | Get stop details | `get-stop A1289` |
 | `search-routes` | Find routes by name/number | `search-routes "84"` |
-| `routes-for-stop` | Routes serving a stop | `routes-for-stop 1001` |
-| `departures` | Upcoming departures | `departures 1001 --realtime` |
-| `arrivals` | Route arrivals | `arrivals 84 --stop-ids 1001` |
-| `trip-time` | Calculate travel time | `trip-time 1001 1003 84` |
+| `routes-for-stop` | Routes serving a stop | `routes-for-stop A1289` |
+| `departures` | Upcoming departures | `departures A1289 --realtime` |
+| `arrivals` | Route arrivals | `arrivals A57 --stop-ids A1289` |
+| `trip-time` | Calculate travel time | `trip-time A1001 A1003 A57` |
 | `cache-info` | Show cache status | `cache-info` |
+| `realtime` | Raw real-time data | `realtime trip --limit 10` |
 
 ## Common Options
 
@@ -33,44 +39,80 @@ python3 cli/sofia_cli.py <command> [options]
 - `--realtime` - Include real-time delay information
 - `--time "HH:MM"` - Filter by time
 - `--type TYPE` - Filter by transport type (TRAM, SUBWAY, etc.)
+- `--real-stop-id N` - Query stops with A, TB, TM prefixes
 
 ## Quick Examples
 
 ### Search and Navigate
 ```bash
 # Find a stop
-python3 cli/sofia_cli.py search-stops "университет"
+python cli/sofia_cli.py search-stops "Орлов мост"
 
 # Get its routes
-python3 cli/sofia_cli.py routes-for-stop 1004
+python cli/sofia_cli.py routes-for-stop A1289
 
 # Check departures
-python3 cli/sofia_cli.py departures 1004 --realtime --limit 5
+python cli/sofia_cli.py departures A1289 --realtime --limit 10
+
+# Query multiple stops at once (A1289, TB1289, TM1289)
+python cli/sofia_cli.py departures --real-stop-id 1289 --realtime
 ```
 
 ### Route Planning
 ```bash
-# Find a route
-python3 cli/sofia_cli.py search-routes "84"
+# Find a route (note: returns route ID, not name)
+python cli/sofia_cli.py search-routes "94"
+# Output: Route ID: A57, Name: 94
 
-# Check where it goes
-python3 cli/sofia_cli.py arrivals 84 --limit 10
+# Check arrivals (use route ID)
+python cli/sofia_cli.py arrivals A57 --stop-ids A1289 --realtime
 
 # Calculate trip time
-python3 cli/sofia_cli.py trip-time 1001 1003 84
+python cli/sofia_cli.py trip-time A1001 A1003 A57
+```
+
+### Real-time Data
+```bash
+# Trip updates (delays)
+python cli/sofia_cli.py realtime trip --limit 10
+
+# Vehicle positions
+python cli/sofia_cli.py realtime vehicle --limit 10
+
+# Export to CSV
+python cli/sofia_cli.py realtime trip --csv
 ```
 
 ### With Filters
 ```bash
 # Trams only
-python3 cli/sofia_cli.py search-routes "трамвай" --type TRAM
+python cli/sofia_cli.py search-routes "трамвай" --type TRAM
 
 # After specific time
-python3 cli/sofia_cli.py departures 1001 --time "09:00"
+python cli/sofia_cli.py departures A1289 --time "09:00"
 
-# Multiple routes
-python3 cli/sofia_cli.py arrivals 84 285 120
+# Metro departures
+python cli/sofia_cli.py departures M7 --limit 10
 ```
+
+## TUI Application
+
+Interactive terminal interface:
+```bash
+python utils/tui/app.py
+# Or: python -m utils.tui
+```
+
+**Keyboard shortcuts:** `q` quit, `r` refresh, `d` departures tab
+
+## Stop ID Prefixes
+
+| Prefix | Transport Type |
+|--------|---------------|
+| `A` | Bus |
+| `TB` | Trolleybus |
+| `TM` | Tram |
+| `M` | Metro |
 
 ## Transport Types
 
@@ -83,60 +125,39 @@ python3 cli/sofia_cli.py arrivals 84 285 120
 
 ## Output Format
 
-All commands produce formatted output:
+Departures and arrivals display as tables:
 
 ```
-======================================================================
-  Command Description
-======================================================================
-
-Result 1:
-  Field: Value
-  Field: Value
-
-Result 2:
-  Field: Value
-  Field: Value
+  Line            Direction        Scheduled  Estimated  Deviation  Live
+  ----------------------------------------------------------------------
+  94 (CITY_BUS)   СТУДЕНТСКИ ГРАД  17:06      17:08      +2 min     ✓
+  84 (CITY_BUS)   УЛ. ГЕН. ГУРКО   17:08      -          -          ✗
 ```
+
+- **Live column:** ✓ = real-time data available, ✗ = scheduled only
 
 ## Files
 
-- **sofia_cli.py** (405 lines) - Main CLI tool
-- **README.md** (270 lines) - Complete documentation
-- **USAGE.md** (170 lines) - Usage guide
-- **QUICK_REFERENCE.md** (this file) - Quick reference
-- **demo.sh** (58 lines) - Interactive demo script
-
-## Running the Demo
-
-```bash
-./cli/demo.sh
-```
-
-Press Enter at each step to see the next command demonstration.
+- **cli/sofia_cli.py** - Main CLI tool
+- **cli/README.md** - Complete documentation
+- **cli/USAGE.md** - Usage guide
+- **cli/QUICK_REFERENCE.md** - This file
+- **cli/demo.sh** - Interactive demo script
+- **utils/tui/app.py** - TUI application
 
 ## Troubleshooting
 
-**Command not found**: Use `python3` instead of `python`
+**Command not found**: Use `python` or `python3`
 
 **Module not found**: Install package with `pip install -e .`
 
-**Parsing errors**: The real GTFS data may have quality issues - this is expected
-
 **No results**: Check internet connection and API accessibility
+
+**Route not found**: Use route ID (e.g., A57) not route name (e.g., 94)
 
 ## Documentation
 
-- Full documentation: [cli/README.md](README.md)
+- Full CLI documentation: [cli/README.md](README.md)
 - Usage guide: [cli/USAGE.md](USAGE.md)
 - API documentation: [docs/API.md](../docs/API.md)
 - Main README: [README.md](../README.md)
-
-## Development
-
-The CLI uses:
-- `argparse` for command parsing
-- `asyncio` for async operations
-- `sofiaclient` package for all API calls
-
-Edit `sofia_cli.py` to add new commands or modify output formatting.

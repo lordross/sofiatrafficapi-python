@@ -66,19 +66,44 @@ A CLI tool is included for testing and manual interaction:
 
 ```bash
 # Show help
-python3 cli/sofia_cli.py --help
+python cli/sofia_cli.py --help
 
 # Search for stops
-python3 cli/sofia_cli.py search-stops "Централна"
+python cli/sofia_cli.py search-stops "Орлов мост"
 
-# Get departures with real-time data
-python3 cli/sofia_cli.py departures 1001 --realtime --limit 10
+# Get departures with real-time data (table format)
+python cli/sofia_cli.py departures A1289 --realtime --limit 10
 
-# Calculate trip time
-python3 cli/sofia_cli.py trip-time 1001 1003 84 --realtime
+# Query multiple stops at once (A1289, TB1289, TM1289)
+python cli/sofia_cli.py departures --real-stop-id 1289 --realtime
+
+# Get arrivals for a route
+python cli/sofia_cli.py arrivals A57 --stop-ids A1289 --realtime
+
+# View raw real-time data
+python cli/sofia_cli.py realtime trip --limit 10
 ```
 
 See [`cli/README.md`](cli/README.md) for complete CLI documentation and examples.
+
+## TUI Application
+
+An interactive terminal UI is also available:
+
+```bash
+# Run the TUI
+python utils/tui/app.py
+
+# Or as a module
+python -m utils.tui
+```
+
+Features:
+- Real-time departures display with auto-refresh (1 minute)
+- Table format with Line, Direction, Scheduled, Estimated, Deviation, Live columns
+- Keyboard shortcuts: `q` quit, `r` refresh
+
+Requires: `pip install textual`
 
 ## Requirements
 
@@ -86,6 +111,7 @@ See [`cli/README.md`](cli/README.md) for complete CLI documentation and examples
 - httpx
 - gtfs-realtime-bindings
 - protobuf
+- textual (optional, for TUI application)
 
 ## Development
 

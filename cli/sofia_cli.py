@@ -43,61 +43,110 @@ def print_line(line) -> None:
     print()
 
 
-def print_departure(departure) -> None:
-    """Print departure details."""
+def format_departure_row(departure, stop_name: str | None = None) -> tuple[str, ...]:
+    """Format departure as table row values."""
     line_display = departure.line_name or departure.line_id
     if departure.transport_type:
         line_display = f"{line_display} ({departure.transport_type.name})"
-    print(f"  Line: {line_display}")
-    planned_str = departure.planned_time.strftime("%H:%M:%S") if departure.planned_time else "N/A"
-    print(f"  Scheduled: {planned_str}")
 
-    if departure.estimated_time:
-        estimated_str = departure.estimated_time.strftime("%H:%M:%S")
-        print(f"  Estimated: {estimated_str}")
+    direction = departure.headsign or "-"
+    scheduled = departure.planned_time.strftime("%H:%M") if departure.planned_time else "-"
+    estimated = departure.estimated_time.strftime("%H:%M") if departure.estimated_time else "-"
 
-        if departure.delay_minutes is not None:
-            if departure.delay_minutes > 0:
-                print(f"  Deviation: Delay ({departure.delay_minutes} min)")
-            elif departure.delay_minutes < 0:
-                print(f"  Deviation: Early ({abs(departure.delay_minutes)} min)")
-            else:
-                print(f"  Deviation: On time")
-    print()
-
-
-def print_arrival(arrival) -> None:
-    """Print arrival details."""
-    print(f"  Stop ID: {arrival.stop_id}")
-    print(f"  Stop Name: {arrival.stop_name}")
-    print(f"  Route: {arrival.route_id} - {arrival.route_name}")
-
-    scheduled_str = arrival.scheduled_time.strftime("%H:%M:%S") if arrival.scheduled_time else "N/A"
-    print(f"  Scheduled: {scheduled_str}")
-
-    if arrival.estimated_time:
-        estimated_str = arrival.estimated_time.strftime("%H:%M:%S")
-        print(f"  Estimated: {estimated_str}")
-
-    if arrival.delay_minutes is not None:
-        if arrival.delay_minutes > 0:
-            print(f"  Deviation: Delay ({arrival.delay_minutes} min)")
-        elif arrival.delay_minutes < 0:
-            print(f"  Deviation: Early ({abs(arrival.delay_minutes)} min)")
+    deviation = "-"
+    if departure.estimated_time and departure.delay_minutes is not None:
+        if departure.delay_minutes > 0:
+            deviation = f"+{departure.delay_minutes} min"
+        elif departure.delay_minutes < 0:
+            deviation = f"{departure.delay_minutes} min"
         else:
-            print(f"  Deviation: On time")
+            deviation = "On time"
 
-    if arrival.vehicle_id:
-        print(f"  Vehicle: {arrival.vehicle_id}")
+    # Real-time data indicator
+    live = "✓" if departure.estimated_time else "✗"
 
-    if arrival.headsign:
-        print(f"  Headsign: {arrival.headsign}")
+    if stop_name is not None:
+        return stop_name, line_display, direction, scheduled, estimated, deviation, live
+    return line_display, direction, scheduled, estimated, deviation, live
 
-    if arrival.alerts:
-        print(f"  Alerts: {len(arrival.alerts)}")
-        for alert in arrival.alerts:
-            print(f"    - {alert}")
-    print()
+
+def print_departures_table(departures: list, with_stop_column: bool = False) -> None:
+    """Print departures as a table."""
+    if not departures:
+        return
+
+    # Format all rows first to calculate column widths
+    if with_stop_column:
+        headers = ("Stop", "Line", "Direction", "Scheduled", "Estimated", "Deviation", "Live")
+        rows = [format_departure_row(d, d._stop_name) for d in departures]
+    else:
+        headers = ("Line", "Direction", "Scheduled", "Estimated", "Deviation", "Live")
+        rows = [format_departure_row(d) for d in departures]
+
+    # Calculate column widths (minimum of header width)
+    widths = [len(h) for h in headers]
+    for row in rows:
+        for i, val in enumerate(row):
+            widths[i] = max(widths[i], len(val))
+
+    # Print header
+    header_line = "  ".join(h.ljust(widths[i]) for i, h in enumerate(headers))
+    print(f"  {header_line}")
+    print(f"  {'-' * len(header_line)}")
+
+    # Print rows
+    for row in rows:
+        row_line = "  ".join(val.ljust(widths[i]) for i, val in enumerate(row))
+        print(f"  {row_line}")
+
+
+def format_arrival_row(arrival) -> tuple[str, str, str, str, str, str, str]:
+    """Format arrival as table row values."""
+    route = arrival.route_name or arrival.route_id
+    direction = arrival.headsign or "-"
+    stop = arrival.stop_name or arrival.stop_id
+    scheduled = arrival.scheduled_time.strftime("%H:%M") if arrival.scheduled_time else "-"
+    estimated = arrival.estimated_time.strftime("%H:%M") if arrival.estimated_time else "-"
+
+    deviation = "-"
+    if arrival.estimated_time and arrival.delay_minutes is not None:
+        if arrival.delay_minutes > 0:
+            deviation = f"+{arrival.delay_minutes} min"
+        elif arrival.delay_minutes < 0:
+            deviation = f"{arrival.delay_minutes} min"
+        else:
+            deviation = "On time"
+
+    # Real-time data indicator
+    live = "✓" if arrival.estimated_time else "✗"
+
+    return route, direction, stop, scheduled, estimated, deviation, live
+
+
+def print_arrivals_table(arrivals: list) -> None:
+    """Print arrivals as a table."""
+    if not arrivals:
+        return
+
+    # Format all rows first to calculate column widths
+    headers = ("Route", "Direction", "Stop", "Scheduled", "Estimated", "Deviation", "Live")
+    rows = [format_arrival_row(a) for a in arrivals]
+
+    # Calculate column widths (minimum of header width)
+    widths = [len(h) for h in headers]
+    for row in rows:
+        for i, val in enumerate(row):
+            widths[i] = max(widths[i], len(val))
+
+    # Print header
+    header_line = "  ".join(h.ljust(widths[i]) for i, h in enumerate(headers))
+    print(f"  {header_line}")
+    print(f"  {'-' * len(header_line)}")
+
+    # Print rows
+    for row in rows:
+        row_line = "  ".join(val.ljust(widths[i]) for i, val in enumerate(row))
+        print(f"  {row_line}")
 
 
 def print_trip_time(trip_time) -> None:
@@ -183,30 +232,83 @@ async def cmd_routes_for_stop(args) -> None:
 
 async def cmd_departures(args) -> None:
     """Get departures from a stop."""
+    # Validate that either stop_id or real_stop_id is provided
+    has_real_stop_id = hasattr(args, 'real_stop_id') and args.real_stop_id
+    if not args.stop_id and not has_real_stop_id:
+        print("Error: Please provide either a stop_id or --real-stop-id")
+        return
+
     # Use current time if not specified
     time_filter = args.time
     if not time_filter:
         time_filter = datetime.now().strftime("%H:%M")
 
-    print_header(f"Departures from Stop: {args.stop_id} (after {time_filter})")
-
     async with SofiaClient(args.base_url) as client:
-        departures = await client.departures_by_location(
-            args.stop_id,
-            arg_date=time_filter,
-            realtime=args.realtime
-        )
-        
-        if not departures:
-            print(f"  No departures found for stop '{args.stop_id}'.")
-            return
-        
-        # Limit results
-        departures = departures[:args.limit]
-        
-        print(f"Found {len(departures)} departure(s):\n")
-        for departure in departures:
-            print_departure(departure)
+        # Check if using real_stop_id (numeric ID with multiple prefixes)
+        if has_real_stop_id:
+            prefixes = ["A", "TB", "TM"]
+            stop_ids = [f"{prefix}{args.real_stop_id}" for prefix in prefixes]
+
+            print_header(f"Departures for stop {args.real_stop_id} (after {time_filter})")
+
+            all_departures = []
+            found_stops = []
+
+            for stop_id in stop_ids:
+                stop = client._static_parser._stops.get(stop_id)
+                if not stop:
+                    continue
+
+                found_stops.append(f"{stop.name} ({stop_id})")
+
+                departures = await client.departures_by_location(
+                    stop_id,
+                    arg_date=time_filter,
+                    realtime=args.realtime
+                )
+
+                # Add stop name to each departure for display
+                for dep in departures:
+                    dep._stop_name = stop.name
+                    all_departures.append(dep)
+
+            if found_stops:
+                print(f"  Stops found: {', '.join(found_stops)}\n")
+
+            if not all_departures:
+                print(f"  No departures found.")
+                return
+
+            # Sort by scheduled time
+            all_departures.sort(key=lambda d: d.planned_time or datetime.min)
+
+            # Limit results
+            all_departures = all_departures[:args.limit]
+
+            print(f"Found {len(all_departures)} departure(s):\n")
+            print_departures_table(all_departures, with_stop_column=True)
+        else:
+            # Standard single stop query
+            stop = client._static_parser._stops.get(args.stop_id)
+            stop_display = f"{stop.name} ({args.stop_id})" if stop else args.stop_id
+
+            print_header(f"Departures from {stop_display} (after {time_filter})")
+
+            departures = await client.departures_by_location(
+                args.stop_id,
+                arg_date=time_filter,
+                realtime=args.realtime
+            )
+
+            if not departures:
+                print(f"  No departures found for stop '{args.stop_id}'.")
+                return
+
+            # Limit results
+            departures = departures[:args.limit]
+
+            print(f"Found {len(departures)} departure(s):\n")
+            print_departures_table(departures)
 
 
 async def cmd_arrivals(args) -> None:
@@ -229,8 +331,7 @@ async def cmd_arrivals(args) -> None:
         arrivals = arrivals[:args.limit]
         
         print(f"Found {len(arrivals)} arrival(s):\n")
-        for arrival in arrivals:
-            print_arrival(arrival)
+        print_arrivals_table(arrivals)
 
 
 async def cmd_trip_time(args) -> None:
@@ -580,7 +681,8 @@ Transport Types: TRAM, SUBWAY, TRAIN, CITY_BUS, INTERCITY_BUS, TROLLEYBUS
         "departures",
         help="Get departures from a stop"
     )
-    departures.add_argument("stop_id", help="Stop ID")
+    departures.add_argument("stop_id", nargs="?", help="Stop ID (e.g., A1289)")
+    departures.add_argument("--real-stop-id", dest="real_stop_id", help="Numeric stop ID to query with A, TB, TM prefixes")
     departures.add_argument("--time", help="Filter departures after this time (HH:MM)")
     departures.add_argument("--realtime", action="store_true", help="Include real-time delay information")
     departures.add_argument("--limit", type=int, default=20, help="Maximum results (default: 20)")

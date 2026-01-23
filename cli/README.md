@@ -51,7 +51,7 @@ python cli/sofia_cli.py search-stops "university"
 Get detailed information about a specific stop:
 
 ```bash
-python cli/sofia_cli.py get-stop 1001
+python cli/sofia_cli.py get-stop A1289
 ```
 
 ### Search Routes
@@ -74,52 +74,87 @@ python cli/sofia_cli.py search-routes "метро" --type SUBWAY
 Get all routes that service a specific stop:
 
 ```bash
-python cli/sofia_cli.py routes-for-stop 1001
+python cli/sofia_cli.py routes-for-stop A1289
 ```
 
 ### Get Departures
 
-Get upcoming departures from a stop:
+Get upcoming departures from a stop. Results are displayed in a table format with columns: Line, Direction, Scheduled, Estimated, Deviation, and Live indicator.
 
 ```bash
-# Basic departures
-python cli/sofia_cli.py departures 1001
+# Basic departures (from current time)
+python cli/sofia_cli.py departures A1289
 
 # Filter by time (show departures after 09:00)
-python cli/sofia_cli.py departures 1001 --time "09:00"
+python cli/sofia_cli.py departures A1289 --time "09:00"
 
 # Include real-time delay information
-python cli/sofia_cli.py departures 1001 --realtime
+python cli/sofia_cli.py departures A1289 --realtime
 
 # Limit results
-python cli/sofia_cli.py departures 1001 --limit 10
+python cli/sofia_cli.py departures A1289 --limit 10
 
 # Combined options
-python cli/sofia_cli.py departures 1001 --time "14:30" --realtime --limit 5
+python cli/sofia_cli.py departures A1289 --time "14:30" --realtime --limit 5
+```
+
+#### Multi-Stop Query with --real-stop-id
+
+Query multiple stops at once using a numeric stop ID. The CLI will automatically search for stops with A, TB, and TM prefixes and display all results in a single table:
+
+```bash
+# Query stops A1289, TB1289, TM1289 at once
+python cli/sofia_cli.py departures --real-stop-id 1289 --realtime --limit 15
+```
+
+Output example:
+```
+Stops found: ПЛ. ОРЛОВ МОСТ (A1289), ПЛ. ОРЛОВ МОСТ (TB1289)
+
+Found 10 departure(s):
+
+  Stop            Line            Direction          Scheduled  Estimated  Deviation  Live
+  ----------------------------------------------------------------------------------------
+  ПЛ. ОРЛОВ МОСТ  94 (CITY_BUS)   СТУДЕНТСКИ ГРАД    17:06      17:08      +2 min     ✓
+  ПЛ. ОРЛОВ МОСТ  84 (CITY_BUS)   УЛ. ГЕН. ГУРКО     17:08      17:12      +4 min     ✓
 ```
 
 ### Get Arrivals
 
-Get arrivals at stops for specific routes:
+Get arrivals at stops for specific routes. Results are displayed in a table format.
+
+**Note:** The arrivals command uses route IDs (not route names). Use `search-routes` to find route IDs first.
 
 ```bash
-# Arrivals for one route
-python cli/sofia_cli.py arrivals 84
+# Find route ID first
+python cli/sofia_cli.py search-routes "94"
+# Output: Route ID: A57, Name: 94
+
+# Arrivals for one route (using route ID)
+python cli/sofia_cli.py arrivals A57
 
 # Arrivals for multiple routes
-python cli/sofia_cli.py arrivals 84 285 120
+python cli/sofia_cli.py arrivals A57 A84 A72
 
 # Filter by specific stops
-python cli/sofia_cli.py arrivals 84 --stop-ids 1001 1002 1003
+python cli/sofia_cli.py arrivals A57 --stop-ids A1289 A1290
 
 # Filter by time
-python cli/sofia_cli.py arrivals 84 --time "10:00"
+python cli/sofia_cli.py arrivals A57 --time "10:00"
 
 # Include real-time information
-python cli/sofia_cli.py arrivals 84 --realtime
+python cli/sofia_cli.py arrivals A57 --realtime
 
 # Combined options
-python cli/sofia_cli.py arrivals 84 285 --stop-ids 1001 1002 --time "09:00" --realtime --limit 15
+python cli/sofia_cli.py arrivals A57 --stop-ids A1289 --time "09:00" --realtime --limit 15
+```
+
+Output example:
+```
+  Route  Direction        Stop            Scheduled  Estimated  Deviation  Live
+  -----------------------------------------------------------------------------
+  94     СТУДЕНТСКИ ГРАД  ПЛ. ОРЛОВ МОСТ  17:34      17:41      +7 min     ✓
+  94     СТУДЕНТСКИ ГРАД  ПЛ. ОРЛОВ МОСТ  17:40      17:47      +7 min     ✓
 ```
 
 ### Calculate Trip Time
@@ -128,10 +163,10 @@ Calculate travel time between two stops on a specific route:
 
 ```bash
 # Basic trip time
-python cli/sofia_cli.py trip-time 1001 1003 84
+python cli/sofia_cli.py trip-time A1001 A1003 A57
 
 # With real-time delay information
-python cli/sofia_cli.py trip-time 1001 1003 84 --realtime
+python cli/sofia_cli.py trip-time A1001 A1003 A57 --realtime
 ```
 
 ### Cache Information
@@ -141,6 +176,81 @@ Display information about the cached GTFS data:
 ```bash
 python cli/sofia_cli.py cache-info
 ```
+
+### Real-time Data
+
+Display raw real-time data from the GTFS-RT feeds:
+
+```bash
+# Trip updates (delays)
+python cli/sofia_cli.py realtime trip --limit 10
+
+# Vehicle positions
+python cli/sofia_cli.py realtime vehicle --limit 10
+
+# Service alerts
+python cli/sofia_cli.py realtime alerts --limit 10
+
+# Export to CSV
+python cli/sofia_cli.py realtime trip --csv
+python cli/sofia_cli.py realtime vehicle --csv
+python cli/sofia_cli.py realtime alerts --csv
+```
+
+## TUI Application
+
+A terminal user interface (TUI) application is available for interactive use:
+
+```bash
+# Run the TUI
+python utils/tui/app.py
+
+# Or as a module
+python -m utils.tui
+```
+
+### TUI Features
+
+- **Departures Tab**: View departures from any stop
+- **Auto-refresh**: Automatically updates every 1 minute
+- **Real-time data**: Shows live departure information
+- **Table display**: Clean tabular format with columns for Line, Direction, Scheduled, Estimated, Deviation, and Live indicator
+
+### TUI Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `q` | Quit |
+| `r` | Refresh |
+| `d` | Focus departures tab |
+
+### TUI Requirements
+
+The TUI requires the `textual` library:
+
+```bash
+pip install textual
+```
+
+## Output Format
+
+### Table Format
+
+Departures and arrivals are displayed in a table format:
+
+```
+  Line            Direction        Scheduled  Estimated  Deviation  Live
+  ----------------------------------------------------------------------
+  94 (CITY_BUS)   СТУДЕНТСКИ ГРАД  17:06      17:08      +2 min     ✓
+  84 (CITY_BUS)   УЛ. ГЕН. ГУРКО   17:08      -          -          ✗
+```
+
+- **Line**: Route number and transport type
+- **Direction**: Final destination (headsign)
+- **Scheduled**: Planned departure/arrival time
+- **Estimated**: Real-time estimated time (if available)
+- **Deviation**: Delay status (+X min, -X min, On time)
+- **Live**: ✓ if real-time data available, ✗ if not
 
 ## Custom API URL
 
@@ -156,51 +266,43 @@ python cli/sofia_cli.py --base-url "http://localhost:8000/api/v1/" search-stops 
 
 ```bash
 # 1. Search for a stop
-python cli/sofia_cli.py search-stops "Централна гара"
-# Output: Stop ID: 1001, Name: Централна гара
+python cli/sofia_cli.py search-stops "Орлов мост"
+# Output: Stop ID: A1289, Name: ПЛ. ОРЛОВ МОСТ
 
 # 2. Get all routes for that stop
-python cli/sofia_cli.py routes-for-stop 1001
-# Output: Route 84, Route 285, etc.
+python cli/sofia_cli.py routes-for-stop A1289
+# Output: Route A57 (94), Route A84 (84), etc.
 
 # 3. Get upcoming departures with real-time info
-python cli/sofia_cli.py departures 1001 --realtime --limit 5
+python cli/sofia_cli.py departures A1289 --realtime --limit 10
 
-# 4. Find destination stop
-python cli/sofia_cli.py search-stops "НДК"
-# Output: Stop ID: 1003, Name: НДК
+# 4. Or query all nearby stops at once
+python cli/sofia_cli.py departures --real-stop-id 1289 --realtime --limit 10
+```
 
-# 5. Calculate trip time
-python cli/sofia_cli.py trip-time 1001 1003 84 --realtime
+### Metro Example
+
+```bash
+# Search for metro station
+python cli/sofia_cli.py search-stops "Сердика"
+# Output: Stop ID: M7, Name: СЕРДИКА
+
+# Get metro departures
+python cli/sofia_cli.py departures M7 --limit 10
+
+# Get arrivals for metro line M1
+python cli/sofia_cli.py arrivals M1 --stop-ids M7 --limit 10
 ```
 
 ### Bus Route Planning Example
 
 ```bash
 # Find bus routes
-python cli/sofia_cli.py search-routes "автобус" --type CITY_BUS --limit 10
+python cli/sofia_cli.py search-routes "94" --type CITY_BUS
 
 # Get arrivals for specific bus routes
-python cli/sofia_cli.py arrivals 213 305 --realtime --limit 20
+python cli/sofia_cli.py arrivals A57 --realtime --limit 20
 ```
-
-### Tram Schedule Example
-
-```bash
-# Find tram routes
-python cli/sofia_cli.py search-routes "трамвай" --type TRAM
-
-# Get tram departures from a stop
-python cli/sofia_cli.py departures 1002 --time "08:00" --realtime
-```
-
-## Output Format
-
-All commands print results in a human-readable format with clear headers and formatting:
-
-- **Headers**: `=====` separators with command title
-- **Sections**: Empty lines between results
-- **Details**: Indented information with labels
 
 ## Error Handling
 
@@ -220,7 +322,9 @@ Error messages are printed to stderr and the tool exits with code 1.
 3. **Case-insensitive** search is automatic
 4. **Real-time data** may not always be available - the tool falls back to scheduled times
 5. **Cache** is automatically managed - first run downloads GTFS data (~1-2 seconds)
-6. **Stop IDs and Route IDs** are preserved from the official Sofia Traffic GTFS feed
+6. **Stop IDs** use prefixes: A (bus), TB (trolleybus), TM (tram), M (metro)
+7. **Route IDs** are different from route names - use `search-routes` to find them
+8. **--real-stop-id** allows querying multiple stop prefixes at once
 
 ## Troubleshooting
 
